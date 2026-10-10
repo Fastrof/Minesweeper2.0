@@ -1,4 +1,4 @@
-# MineSweeper 2.0
+# Minesweeper 2.0
 
 [简体中文](README.md) | **English**
 
