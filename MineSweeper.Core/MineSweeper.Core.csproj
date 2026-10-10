@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    MineSweeper.Core —— 纯 .NET 类库（§1.3）
+    硬性约定：本工程不得引用任何 Windows App SDK / WinUI 类型。
+    棋盘生成、洪水填充、chord、胜负判定、道具计数全部可在此层用单测覆盖，
+    不需要启动 UI 调试。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>MineSweeper.Core</RootNamespace>
+    <AssemblyName>MineSweeper.Core</AssemblyName>
+  </PropertyGroup>
+
+</Project>

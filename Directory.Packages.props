@@ -1,0 +1,24 @@
+<Project>
+
+  <!--
+    中央包管理：所有 NuGet 版本在此集中声明，各工程用无版本号的 PackageReference。
+    版本基线见文档 §1.1（2026-10 现状）：
+      Windows App SDK 2.x 当前补丁 = 2.5.1（文档写"按 2.0 为基线"，即 2.x 线）
+      Win2D for WinUI 3            = 1.4.0
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
+    <PackageVersion Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
+</Project>

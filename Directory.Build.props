@@ -1,0 +1,18 @@
+<Project>
+
+  <!--
+    全局编译约定（§1.3 约定 1：Core 不引用任何 UI 类型）
+      - 对所有工程生效（Core / App / Tests）
+      - 语言与可空性一律锁定，避免不同机器上编译结果不一致
+      - NuGet 版本集中在 Directory.Packages.props（中央包管理）
+  -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>
