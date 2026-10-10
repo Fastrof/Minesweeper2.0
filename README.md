@@ -1,4 +1,4 @@
-# 扫雷 2.0 / MineSweeper 2.0
+# 扫雷 2.0
 
 **简体中文** | [English](README.en.md)
 
