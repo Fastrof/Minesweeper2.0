@@ -134,20 +134,6 @@ tests/
 
 ---
 
-## 想继续开发？
-
-架构说明、改动指南、诊断开关、代码约定、**完整变更记录**与发布清单，都在
-**[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**。
-
-几个最常查的：
-
-| 想做什么 | 去哪 |
-|---|---|
-| 改关卡数值（盘面 / 雷数 / 星级门槛） | `Core/Levels/LevelTable.cs`，**只改这一张表** |
-| 加一套主题 | `Core/Themes/BoardPalette.cs` 加一条记录，下拉框自动多一项 |
-| 加一个音效 | `SoundEffect` 枚举 + `WavSynth` 加波形，首次运行自动合成 |
-| 排查问题 | `docs/DEVELOPMENT.md` §11.4 的 `SAOLEI_*` 诊断开关 |
-
 ## 许可
 
 **仅供学习与交流使用。**
