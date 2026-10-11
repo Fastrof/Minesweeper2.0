@@ -1,0 +1,754 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="MineSweeper.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="using:MineSweeper.App.Views"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid x:Name="RootGrid" Padding="12" RowSpacing="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <!--
+                关卡导航单独占一行。**不要**把它塞进第 2 行那个 StackPanel：
+                实测那样做时它拿到的高度是 0（容器被压到 72 DIP，五个子元素里它最先被牺牲），
+                表现就是"按钮明明 Visible 却完全看不见"。
+            -->
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--
+            所有"要告诉玩家的事"都改走 Windows Toast 通知（见 Services/ToastNotifier.cs），
+            窗口里不再有提示条——本工程刻意不保留任何游戏内通知 UI。
+        -->
+
+        <!-- §4.4 状态栏：剩余雷数（左）— 表情（中）— 计时器（右）— 物品栏（最右） -->
+        <Grid Grid.Row="0" ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Border
+                Grid.Column="0"
+                Padding="10,6"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock VerticalAlignment="Center" Text="剩余" />
+                    <TextBlock
+                        x:Name="RemainingText"
+                        VerticalAlignment="Center"
+                        MinWidth="46"
+                        FontFamily="Consolas"
+                        FontSize="18"
+                        FontWeight="Bold"
+                        Text="{x:Bind ViewModel.RemainingText, Mode=OneWay}" />
+                    <TextBlock VerticalAlignment="Center" Text="/" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontFamily="Consolas"
+                        FontSize="18"
+                        Text="{x:Bind ViewModel.TotalMinesText, Mode=OneWay}" />
+                </StackPanel>
+            </Border>
+
+            <!-- 状态文字占可伸缩列：窗口跟着棋盘变窄时会以省略号收尾，而不是整块被裁掉 -->
+            <TextBlock
+                Grid.Column="1"
+                Margin="6,0"
+                VerticalAlignment="Center"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
+                TextTrimming="CharacterEllipsis" />
+
+            <Button
+                x:Name="SmileyButton"
+                Grid.Column="2"
+                Width="52"
+                Height="44"
+                VerticalAlignment="Center"
+                Click="OnSmileyClick"
+                Content="{x:Bind ViewModel.SmileyGlyph, Mode=OneWay}"
+                FontSize="20"
+                ToolTipService.ToolTip="重新开一局" />
+
+            <Border
+                Grid.Column="3"
+                Padding="10,6"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock VerticalAlignment="Center" Text="用时" />
+                    <TextBlock
+                        x:Name="TimerText"
+                        VerticalAlignment="Center"
+                        MinWidth="58"
+                        FontFamily="Consolas"
+                        FontSize="18"
+                        FontWeight="Bold"
+                        Text="{x:Bind ViewModel.TimerText, Mode=OneWay}" />
+                </StackPanel>
+            </Border>
+
+            <!-- §5.3 物品栏：三格，最右 -->
+            <StackPanel
+                Grid.Column="4"
+                Orientation="Horizontal"
+                Spacing="6">
+                <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        FontSize="11"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="物品栏" />
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        FontSize="11"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="{x:Bind ViewModel.MagnifierProgressText, Mode=OneWay}" />
+                </StackPanel>
+
+                <Border
+                    x:Name="MagnifierSlot"
+                    Width="48"
+                    Height="48"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    RightTapped="OnMagnifierRightTapped"
+                    Holding="OnMagnifierHolding"
+                    ToolTipService.ToolTip="右键点击使用放大镜：透视 3×3 区域（§5.3）">
+                    <Grid>
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontSize="22"
+                            Text="🔍" />
+                        <Border
+                            Padding="4,0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Bottom"
+                            Background="{ThemeResource SystemControlBackgroundAccentBrush}"
+                            CornerRadius="6">
+                            <TextBlock
+                                FontFamily="Consolas"
+                                FontSize="11"
+                                Foreground="White"
+                                Text="{x:Bind ViewModel.MagnifierCountText, Mode=OneWay}" />
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!--v0.6 第 2 格：声呐扫描（瞄准型：右键/长按进入瞄准）-->
+                <Border
+                    x:Name="SonarSlot"
+                    Width="48"
+                    Height="48"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Tag="1"
+                    RightTapped="OnSlotRightTapped"
+                    Holding="OnSlotHolding"
+                    ToolTipService.ToolTip="右键/长按使用声呐扫描：选一个 3×3，只报有几颗雷，不显示位置">
+                    <Grid>
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" Text="📡" />
+                        <Border Padding="4,0" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                Background="{ThemeResource SystemControlBackgroundAccentBrush}" CornerRadius="6">
+                            <TextBlock FontFamily="Consolas" FontSize="11" Foreground="White"
+                                       Text="{x:Bind ViewModel.SonarCountText, Mode=OneWay}" />
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!--v0.6 第 3 格：时间冻结（即用型：点一下就冻结）-->
+                <Border
+                    x:Name="FreezeSlot"
+                    Width="48"
+                    Height="48"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Tag="2"
+                    Tapped="OnFreezeSlotTapped"
+                    RightTapped="OnSlotRightTapped"
+                    Holding="OnSlotHolding"
+                    ToolTipService.ToolTip="点击使用时间冻结：倒计时暂停 20 秒（暂停期间不计入用时）">
+                    <Grid>
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" Text="🧊" />
+                        <Border Padding="4,0" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                Background="{ThemeResource SystemControlBackgroundAccentBrush}" CornerRadius="6">
+                            <TextBlock FontFamily="Consolas" FontSize="11" Foreground="White"
+                                       Text="{x:Bind ViewModel.FreezeCountText, Mode=OneWay}" />
+                        </Border>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <!-- §1.4 方案 A：单一 Win2D 渲染路径。右侧是 §5.6 的"放大镜信息面板" -->
+        <Grid Grid.Row="1" ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Border
+                Grid.Column="0"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+                <Grid x:Name="BoardHost" />
+            </Border>
+
+            <Border
+                x:Name="MagnifierPanel"
+                Grid.Column="1"
+                Width="280"
+                Padding="10"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Visibility="Collapsed">
+                <ScrollViewer>
+                    <StackPanel Spacing="6">
+                        <TextBlock FontWeight="SemiBold" Text="放大镜区域" />
+                        <TextBlock
+                            FontSize="11"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="列出瞄准/透视区域的坐标与内容，便于无障碍与截图分享（§5.6）。"
+                            TextWrapping="Wrap" />
+                        <TextBlock
+                            x:Name="MagnifierPreviewText"
+                            FontFamily="Consolas"
+                            FontSize="12"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- 操作与设置 -->
+        <StackPanel Grid.Row="2" Spacing="8">
+            <!-- 关卡模式的目标条：只在关卡模式显示（由 code-behind 控制可见性） -->
+            <Border
+                x:Name="LevelGoalBar"
+                Padding="10,6"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Visibility="Collapsed">
+                <TextBlock
+                    Text="{x:Bind ViewModel.LevelGoalText, Mode=OneWay}"
+                    TextWrapping="Wrap" />
+            </Border>
+
+            <!-- 两行摆放：窗口会跟着棋盘变窄，一行放不下这些按钮 -->
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button x:Name="BeginnerButton" Click="OnBeginnerClick" Content="初级 9×9 / 10 雷" />
+                <Button x:Name="IntermediateButton" Click="OnIntermediateClick" Content="中级 16×16 / 40 雷" />
+                <Button x:Name="ExpertButton" Click="OnExpertClick" Content="高级 30×16 / 99 雷" />
+                <Button
+                    x:Name="LevelsButton"
+                    Click="OnLevelsClick"
+                    Content="关卡模式" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <ToggleButton
+                    x:Name="SettingsToggle"
+                    Content="设置 / 自定义"
+                    IsChecked="False"
+                    Checked="OnSettingsToggled"
+                    Unchecked="OnSettingsToggled" />
+                <Button Command="{x:Bind ViewModel.CopyShareCodeCommand}" Content="复制本局种子" />
+                <Button
+                    x:Name="HistoryButton"
+                    Click="OnHistoryClick"
+                    Content="历史记录" />
+                <Button
+                    x:Name="AboutGameButton"
+                    Click="OnAboutGameClick"
+                    Content="关于游戏" />
+                <Button
+                    x:Name="AboutAuthorsButton"
+                    Click="OnAboutAuthorsClick"
+                    Content="关于作者" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontFamily="Consolas"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{x:Bind ViewModel.SeedText, Mode=OneWay}" />
+            </StackPanel>
+
+            <Border
+                x:Name="SettingsPanel"
+                Padding="12"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Visibility="Collapsed">
+                <StackPanel Spacing="10">
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock VerticalAlignment="Center" Text="宽度" />
+                        <NumberBox
+                            x:Name="WidthBox"
+                            Width="110"
+                            Maximum="4096"
+                            Minimum="1"
+                            SpinButtonPlacementMode="Compact"
+                            Value="30" />
+                        <TextBlock VerticalAlignment="Center" Text="高度" />
+                        <NumberBox
+                            x:Name="HeightBox"
+                            Width="110"
+                            Maximum="4096"
+                            Minimum="1"
+                            SpinButtonPlacementMode="Compact"
+                            Value="16" />
+                        <TextBlock VerticalAlignment="Center" Text="雷数" />
+                        <NumberBox
+                            x:Name="MinesBox"
+                            Width="120"
+                            Maximum="16777207"
+                            Minimum="0"
+                            SpinButtonPlacementMode="Compact"
+                            Value="99" />
+                        <Button Click="OnCustomStartClick" Content="按此参数开局" />
+                    </StackPanel>
+
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="上限：4096×4096；雷数 ≤ 总格数 − 9（首点 3×3 安全区，§0.1）。参数非法时会明确报错并拒绝开局。"
+                        TextWrapping="Wrap" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <ToggleSwitch
+                            x:Name="FirstClickOpeningSwitch"
+                            Header="首点扩展安全区（5×5，手感更接近现代复刻）"
+                            IsOn="True" />
+                        <ToggleSwitch
+                            x:Name="PauseTimerSwitch"
+                            Header="窗口失焦时暂停计时"
+                            IsOn="False" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock VerticalAlignment="Center" Text="种子（留空 = 随机；同种子同首点 = 同盘面）" />
+                        <TextBox
+                            x:Name="SeedBox"
+                            Width="150"
+                            PlaceholderText="例 123456" />
+                        <Button Click="OnReplaySeedClick" Content="用此种子 + 上次首点重开" />
+                        <Button Click="OnFitClick" Content="适应窗口" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock VerticalAlignment="Center" Text="分享串（形如 16x16:40:123456:77:1）" />
+                        <TextBox
+                            x:Name="ShareCodeBox"
+                            Width="280"
+                            PlaceholderText="粘贴好友发来的分享串，可精确复现同一盘面" />
+                        <Button Click="OnOpenShareCodeClick" Content="按分享串复现盘面" />
+                    </StackPanel>
+
+                    <!-- 主题与音效：主题只是调色板（矢量自绘，不需要图片素材）；音效由代码合成 -->
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock VerticalAlignment="Center" Text="主题" />
+                        <ComboBox
+                            x:Name="ThemeCombo"
+                            VerticalAlignment="Center"
+                            MinWidth="130"
+                            SelectionChanged="OnThemeChanged" />
+
+                        <!-- 标签用独立的 TextBlock + 垂直居中：不用 ToggleSwitch.Header，
+                             否则 Header 会把"音效"两个字渲染在开关上方，和"主题""音量"不在一行 -->
+                        <TextBlock VerticalAlignment="Center" Text="音效" />
+                        <ToggleSwitch
+                            x:Name="AudioToggle"
+                            VerticalAlignment="Center"
+                            IsOn="True"
+                            Toggled="OnAudioToggled" />
+
+                        <TextBlock VerticalAlignment="Center" Text="音量" />
+                        <Slider
+                            x:Name="VolumeSlider"
+                            VerticalAlignment="Center"
+                            Width="150"
+                            Maximum="100"
+                            Minimum="0"
+                            Value="70"
+                            ValueChanged="OnVolumeChanged" />
+                        <Button
+                            VerticalAlignment="Center"
+                            Click="OnPreviewSoundClick"
+                            Content="试听" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Click="OnPerfProbeClick" Content="性能自检（会短暂卡住）" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="在离屏画布上实测 1000×1000 各缩放档位的绘制耗时，结果写入 %LOCALAPPDATA%\MineSweeper2\app.log（文档 M2 的验收标准）。" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <ToggleSwitch
+                            x:Name="LockedBoardToggle"
+                            Header="锁定盘面（同种子必定同盘，§2.6）"
+                            IsOn="False"
+                            Toggled="OnLockedBoardToggled" />
+                        <ToggleSwitch
+                            x:Name="HeatmapToggle"
+                            Header="远景雷密度热力图（辅助视图，会泄露信息，§1.5）"
+                            IsOn="False"
+                            Toggled="OnHeatmapToggled" />
+                    </StackPanel>
+
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="主题与音效存在 %LOCALAPPDATA%\MineSweeper2\settings.json，可手改；例如 themeOverrides 里只改 coveredFill 就能换掉未翻开格的颜色。音效首次运行由代码合成到 %LOCALAPPDATA%\MineSweeper2\sounds\*.wav，放同名文件进去即可替换成自己的音效（不需要任何随工程分发的素材）。"
+                        TextWrapping="Wrap" />
+
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="操作：左键翻开 · 右键插旗（三态：旗→问号→空）· 双击/中键/左右键同按 chord · 右键点击物品栏图标进入放大镜瞄准态（瞄准态里右键棋盘取消）· Ctrl+滚轮缩放 · Shift+滚轮横向滚动 · 滚轮纵向滚动 · 中键拖拽平移 · 双击棋盘空白处适应窗口"
+                        TextWrapping="Wrap" />
+
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="提示方式：所有提示都以 Windows 通知（Toast）发出，按级别区分——普通提示静音、成功用默认提示音、警告显示更久、错误用紧急样式。若系统关闭了通知，提示仍会记录在 %LOCALAPPDATA%\MineSweeper2\app.log。"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!--
+            关卡模式选择面板（覆盖整个窗口）。
+            关卡列表由 code-behind 按章节动态生成，因为每关要显示星数/解锁状态/目标，
+            用 XAML 模板反而更绕。
+        -->
+        <Border
+            x:Name="LevelPanel"
+            Grid.Row="0"
+            Grid.RowSpan="3"
+            Padding="16"
+            Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            Canvas.ZIndex="10"
+            CornerRadius="8"
+            Visibility="Collapsed">
+            <Grid RowSpacing="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        Text="关卡模式" />
+                    <TextBlock
+                        x:Name="LevelSummaryText"
+                        VerticalAlignment="Center"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Button Click="OnCloseLevelPanelClick" Content="返回游戏" />
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="1">
+                    <StackPanel x:Name="LevelListPanel" Spacing="14" />
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!--
+            胜利结算小弹窗（关卡模式）。
+            做成**主窗口内的模态卡片**而不是独立窗口：结算要看"这一局的成绩"，
+            贴在棋盘上比另开一个窗口更贴近上下文，也省掉一次窗口抢焦点。
+            内容全部由 code-behind 填（星级、用时、解锁提示都是动态的）。
+        -->
+        <!--
+
+            v0.6 的"三选一"奖励弹窗：每扫到 20 颗雷攒一次，玩家从三个道具里挑一个。
+            做成覆盖层而不是独立窗口：它服务的是"这一局"，贴在棋盘上更贴近上下文。
+        -->
+        <!-- 历史记录弹窗（v0.6）：从第一次扫雷起累计的总量。只存在 %LOCALAPPDATA%\MineSweeper2\history.json，删掉就从零开始 -->
+        <Border
+            x:Name="HistoryOverlay"
+            Grid.Row="0"
+            Grid.RowSpan="4"
+            Background="#99000000"
+            Canvas.ZIndex="40"
+            Visibility="Collapsed">
+            <Border Width="460" Padding="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10">
+                <StackPanel Spacing="10">
+                    <TextBlock HorizontalAlignment="Center" FontSize="18" FontWeight="SemiBold" Text="历史记录" />
+                    <TextBlock x:Name="HistoryRangeText" FontSize="13" TextWrapping="Wrap" />
+                    <TextBlock x:Name="HistoryTotalsText" FontSize="14" TextWrapping="Wrap" />
+                    <TextBlock x:Name="HistoryGamesText" FontSize="13" TextWrapping="Wrap" />
+                    <TextBlock x:Name="HistoryNoteText" FontSize="12" TextWrapping="Wrap"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Button HorizontalAlignment="Center" Click="OnHistoryCloseClick" Content="关闭" />
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <Border
+            x:Name="ItemChoiceOverlay"
+            Grid.Row="0"
+            Grid.RowSpan="4"
+            Background="#99000000"
+            Canvas.ZIndex="30"
+            Visibility="Collapsed">
+            <Border
+                Width="430"
+                Padding="20"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <StackPanel Spacing="10">
+                    <TextBlock
+                        x:Name="ItemChoiceTitle"
+                        HorizontalAlignment="Center"
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        Text="攒到一次道具奖励" />
+                    <TextBlock
+                        x:Name="ItemChoiceHint"
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        TextWrapping="Wrap" />
+                    <Button
+                        x:Name="ChoiceMagnifierButton"
+                        HorizontalAlignment="Stretch"
+                        Click="OnItemChoiceMagnifier" />
+                    <Button
+                        x:Name="ChoiceSonarButton"
+                        HorizontalAlignment="Stretch"
+                        Click="OnItemChoiceSonar" />
+                    <Button
+                        x:Name="ChoiceFreezeButton"
+                        HorizontalAlignment="Stretch"
+                        Click="OnItemChoiceFreeze" />
+                    <TextBlock
+                        x:Name="ItemChoiceRemaining"
+                        HorizontalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </Border>
+        </Border>
+        <Border
+            x:Name="SettlementOverlay"
+            Grid.Row="0"
+            Grid.RowSpan="4"
+            Background="#99000000"
+            Canvas.ZIndex="20"
+            Visibility="Collapsed">
+            <Border
+                Width="380"
+                Padding="20"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <StackPanel Spacing="10">
+                    <TextBlock
+                        x:Name="SettlementTitle"
+                        HorizontalAlignment="Center"
+                        FontSize="20"
+                        FontWeight="SemiBold" />
+                    <TextBlock
+                        x:Name="SettlementStars"
+                        HorizontalAlignment="Center"
+                        FontSize="30"
+                        Foreground="#E0A800" />
+
+                    <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
+
+                    <TextBlock
+                        x:Name="SettlementSummary"
+                        FontSize="13"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        x:Name="SettlementHint"
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        TextWrapping="Wrap" />
+
+                    <StackPanel
+                        Margin="0,4,0,0"
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <Button
+                            x:Name="SettlementRetryButton"
+                            Click="OnSettlementRetryClick"
+                            Content="重开这一关" />
+                        <Button
+                            x:Name="SettlementNextButton"
+                            Click="OnSettlementNextClick"
+                            Content="下一关 ▶" />
+                        <Button Click="OnSettlementCloseClick" Content="返回游戏" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!--
+            声呐扫描结果（v0.8）：**需要玩家手动确认**才关闭。
+
+            为什么要有它：瞄准用的蓝色方框在"放下去"之后就消失了，玩家很容易忘记
+            刚扫的是哪一块、那一块里有几颗雷。所以把结果落成一张卡片，直到玩家点"知道了"为止。
+            Toast 通知照旧发（它会自己收起，负责即时提醒；这张卡片负责"回头看"）。
+        -->
+        <Border
+            x:Name="SonarOverlay"
+            Grid.Row="0"
+            Grid.RowSpan="4"
+            Background="#99000000"
+            Canvas.ZIndex="40"
+            Visibility="Collapsed">
+            <Border
+                Width="380"
+                Padding="20"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <StackPanel Spacing="10">
+                    <TextBlock
+                        x:Name="SonarTitle"
+                        HorizontalAlignment="Center"
+                        FontSize="18"
+                        FontWeight="SemiBold" />
+                    <TextBlock
+                        x:Name="SonarArea"
+                        HorizontalAlignment="Center"
+                        FontSize="13"
+                        TextWrapping="Wrap" />
+                    <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
+                    <TextBlock
+                        x:Name="SonarRemaining"
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        TextWrapping="Wrap" />
+                    <Button
+                        Margin="0,4,0,0"
+                        HorizontalAlignment="Center"
+                        Click="OnSonarCloseClick"
+                        Content="知道了" />
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!--
+            踩雷失败（v0.8）：所有模式下都会弹出，让玩家直接选"重开这一盘"或"退出游戏"。
+            以前只有一条 Toast，玩家要自己去找笑脸按钮；这里把两个最常用的动作摆出来。
+        -->
+        <Border
+            x:Name="DefeatOverlay"
+            Grid.Row="0"
+            Grid.RowSpan="4"
+            Background="#99000000"
+            Canvas.ZIndex="35"
+            Visibility="Collapsed">
+            <Border
+                Width="360"
+                Padding="20"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <StackPanel Spacing="10">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        FontSize="20"
+                        FontWeight="SemiBold"
+                        Text="💥 踩到雷了" />
+                    <TextBlock
+                        x:Name="DefeatSummary"
+                        HorizontalAlignment="Center"
+                        FontSize="13"
+                        TextAlignment="Center"
+                        TextWrapping="Wrap" />
+                    <StackPanel
+                        Margin="0,4,0,0"
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <Button
+                            x:Name="DefeatRetryButton"
+                            Click="OnDefeatRetryClick"
+                            Content="重新开始这一盘" />
+                        <Button Click="OnDefeatExitClick" Content="退出游戏" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!--
+            关卡内的"上一关 / 下一关"：直接放在游戏里，不用退回关卡面板就能连着往下打。
+            只在进行中的关卡局显示（普通局没有"上一关"这个概念）；下一关要已解锁才可点，
+            所以它平时是灰的；第一关的「上一关」同样是灰的。
+
+            **单独占根 Grid 的第 3 行**：底部那个 StackPanel 的宽度已经被两行按钮占满
+            （客户区只有 685 DIP），往里塞会被挤成高度 0；把它放进设置面板则随面板一起折叠。
+        -->
+        <StackPanel
+            x:Name="LevelNavRow"
+            Grid.Row="3"
+            Orientation="Horizontal"
+            Spacing="8"
+            Visibility="Collapsed">
+            <Button
+                x:Name="PreviousLevelButton"
+                Click="OnPreviousLevelClick"
+                Content="◀ 上一关" />
+            <Button
+                x:Name="NextLevelButton"
+                Click="OnNextLevelClick"
+                Content="下一关 ▶" />
+        </StackPanel>
+
+    </Grid>
+</Window>

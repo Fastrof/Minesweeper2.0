@@ -1,0 +1,76 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    MineSweeper.App —— WinUI 3 客户端（§1.3）。
+
+    按 §7.1：先用 unpackaged（WindowsPackageType=None）把功能跑通，
+    功能验收后再切单项目 MSIX。
+
+    §1.4 决策：采用方案 A —— 单一 Win2D 渲染路径，
+    经典三级难度只是"一组预设参数"，不是另一套实现。
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>MineSweeper.App</RootNamespace>
+    <AssemblyName>MineSweeper2</AssemblyName>
+    <!-- 版本号：exe 属性里会显示，关于页面读的是 AboutInfo.Version（两处要一起改） -->
+    <Version>1.0.0</Version>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!--
+      程序图标：把多尺寸 ICO 嵌进 exe。
+      这一条同时覆盖三处：任务栏、窗口标题栏、以及 unpackaged 应用注册给
+      Windows 通知平台的 shell 图标（Toast 左上角那个小图标就来自这里）。
+      ICO 由 App/Assets/MineSweeper2.0.ico 提供（16/20/24/32/40/48/64/128/256 九帧）。
+    -->
+    <ApplicationIcon>Assets\MineSweeper2.0.ico</ApplicationIcon>
+
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <UseWinUI>true</UseWinUI>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- §7.1：先 unpackaged 调试；功能验收后改成 MSIX 打包 -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>false</SelfContained>
+    <PublishProfile>win-x64</PublishProfile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+    <PackageReference Include="Microsoft.Graphics.Win2D" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MineSweeper.Core\MineSweeper.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    图标资源跟着 exe 一起输出：
+    - MineSweeper2.0.ico：AppWindow.SetIcon 用（标题栏/任务栏的显式设置）
+    - ToastIcon.png：Toast 通知的 appLogoOverride 用（unpackaged 下必须走 file:// 路径，
+      不能用 ms-appx，所以它必须真实存在于磁盘上）
+  -->
+  <ItemGroup>
+    <Content Include="Assets\MineSweeper2.0.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\ToastIcon.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- 作者头像（由根目录的 1448×1448 原图缩到 256×256，别直接发原图） -->
+    <Content Include="Assets\Authors\Fastrof.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Authors\Shinichi.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

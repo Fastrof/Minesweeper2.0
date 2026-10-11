@@ -1,4 +1,4 @@
-# 扫雷 2.0
+# 扫雷 2.0 / MineSweeper 2.0
 
 **简体中文** | [English](README.en.md)
 
@@ -16,7 +16,7 @@
 | **当前版本** | `v1.0.0`（首个公开发布版） |
 | **构建** | `build.cmd` → **0 警告 0 错误** |
 | **测试** | `test.cmd` → **162 / 162 通过**（约 1 秒） |
-| **仓库** | https://github.com/Fastrof/Mainsweeper2.0 |
+| **仓库** | https://github.com/Fastrof/Minesweeper2.0 |
 | **许可** | 仅供学习与交流使用 |
 
 ---
@@ -46,8 +46,8 @@
 ## 快速开始
 
 ```bat
-git clone https://github.com/Fastrof/Mainsweeper2.0.git
-cd Mainsweeper2.0
+git clone https://github.com/Fastrof/Minesweeper2.0.git
+cd Minesweeper2.0
 
 build.cmd     :: 编译整个解决方案（x64），0 警告 0 错误
 run.cmd       :: 启动游戏

@@ -1,4 +1,4 @@
-# Minesweeper 2.0
+# MineSweeper 2.0
 
 [简体中文](README.md) | **English**
 
@@ -16,7 +16,7 @@ A Windows Minesweeper written from scratch: **reproduce the classic game 100% fi
 | **Version** | `v1.0.0` (first public release) |
 | **Build** | `build.cmd` → **0 warnings, 0 errors** |
 | **Tests** | `test.cmd` → **162 / 162 passing** (~1 second) |
-| **Repository** | https://github.com/Fastrof/Mainsweeper2.0 |
+| **Repository** | https://github.com/Fastrof/Minesweeper2.0 |
 | **License** | For learning and discussion only |
 
 ---
@@ -43,8 +43,8 @@ Left click to reveal · right click cycles through three states (flag → questi
 ## Quick start
 
 ```bat
-git clone https://github.com/Fastrof/Mainsweeper2.0.git
-cd Mainsweeper2.0
+git clone https://github.com/Fastrof/Minesweeper2.0.git
+cd Minesweeper2.0
 
 build.cmd     :: build the whole solution (x64), 0 warnings 0 errors
 run.cmd       :: launch the game

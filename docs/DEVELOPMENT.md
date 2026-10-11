@@ -570,7 +570,7 @@ unpackaged 运行时它一直是系统那个通用的"应用"占位图。
   圆形头像用 `Border` + `CornerRadius` + `ImageBrush`（WinUI 的 `RectangleGeometry` 没有圆角属性）。
 
 **仓库已公开**：`src\MineSweeper.App\AboutInfo.cs` 里的 `RepositoryUrl` 已填成
-`https://github.com/Fastrof/Mainsweeper2.0`（关于页面会直接显示这个链接；**留空时**才显示"即将公开"）。
+`https://github.com/Fastrof/Minesweeper2.0`（关于页面会直接显示这个链接；**留空时**才显示"即将公开"）。
 版本号、两位作者名、许可文案也都在这一个文件里；页面正文在 `AboutText.cs`。
 
 ---
@@ -983,7 +983,7 @@ MineSweeper.App    WinUI 3 + Win2D → 只负责显示与输入，不含游戏�
 
 ## 12. 发布到 GitHub（v1.0.0 的清单）
 
-仓库地址：**https://github.com/Fastrof/Mainsweeper2.0**（`AboutInfo.RepositoryUrl` 就是它）。
+仓库地址：**https://github.com/Fastrof/Minesweeper2.0**（`AboutInfo.RepositoryUrl` 就是它）。
 
 ### 12.1 该提交的
 
@@ -1019,7 +1019,7 @@ git init
 git add .
 git ls-files | findstr /I "HANDOFF Fastrof.png Shinichi.png .7z"   :: 必须无输出
 git commit -m "扫雷 2.0 v1.0.0：首个公开版本"
-git remote add origin https://github.com/Fastrof/Mainsweeper2.0.git
+git remote add origin https://github.com/Fastrof/Minesweeper2.0.git
 git branch -M main
 git push -u origin main
 ```
@@ -1049,7 +1049,7 @@ git push -u origin main
 这一版没有加新玩法，做的是"**能安心公开**"这件事：
 
 - **仓库公开**：关于页面的"开源地址"从占位文案"即将公开"改成真实链接
-  （`AboutInfo.RepositoryUrl = https://github.com/Fastrof/Mainsweeper2.0`）。
+  （`AboutInfo.RepositoryUrl = https://github.com/Fastrof/Minesweeper2.0`）。
   关于页面现在显示 **版本 1.0** 与可点击的仓库地址。
 - **版本号统一到 1.0.0**（三处一起改：`AboutInfo.Version = "1.0"`、csproj `<Version>1.0.0</Version>`、README）。
   exe 属性显示 `1.0.0.0 / 1.0.0`。
