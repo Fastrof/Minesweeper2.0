@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>扫雷 2.0 / MineSweeper 2.0 —— 从零手写的 Windows 扫雷</title>
+<meta name="description" content="扫雷 2.0 是一个从零手写的 Windows 扫雷：经典玩法 100% 还原，另有 6 章 36 关关卡模式、三种道具、19 色可调主题与代码合成音效。零第三方素材，完全离线，不收集任何数据。">
+<meta name="theme-color" content="#070d18">
+<meta name="color-scheme" content="dark">
+
+<!-- 社交分享 -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="扫雷 2.0 / MineSweeper 2.0">
+<meta property="og:description" content="经典玩法 100% 还原 · 6 章 36 关 · 三种道具 · 零第三方素材 · 完全离线">
+<meta property="og:image" content="assets/img/og-1200x630.png">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="assets/img/og-1200x630.png">
+
+<link rel="icon" href="assets/img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<!-- ============================== 顶栏 ============================== -->
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="#top">
+      <img src="assets/img/icon-96.png" alt="" width="30" height="30">
+      <span>扫雷 2.0</span>
+    </a>
+
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">☰</button>
+
+    <nav class="nav" id="site-nav">
+      <a href="#play">在线试玩</a>
+      <a href="#features">特性</a>
+      <a href="#levels">关卡</a>
+      <a href="#items">道具</a>
+      <a href="#render">渲染</a>
+      <a href="#download">下载</a>
+      <a href="https://github.com/Fastrof/Minesweeper2.0" target="_blank" rel="noopener">GitHub</a>
+      <span class="lang">
+        <span class="is-current">简体中文</span>
+        <a href="en.html" hreflang="en" lang="en">English</a>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ============================== 首屏 ============================== -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-text">
+        <p class="hero-tag"><span class="dot" aria-hidden="true"></span> Windows 10/11 · x64 · 免费</p>
+        <h1>扫雷 2.0</h1>
+        <p class="lead">
+          一个从零手写的 Windows 扫雷：<strong>先把经典玩法 100% 还原，再往上加新的东西。</strong>
+          C# + .NET 10 + WinUI 3 + Win2D，不需要 Visual Studio，<code>dotnet build</code> 即可编译。
+        </p>
+
+        <div class="btn-row">
+          <a class="btn btn--primary" href="https://github.com/Fastrof/Minesweeper2.0/releases" target="_blank" rel="noopener">下载安装包</a>
+          <a class="btn btn--ghost" href="#play">在线试玩 →</a>
+          <a class="btn btn--ghost" href="https://github.com/Fastrof/Minesweeper2.0" target="_blank" rel="noopener">查看源码</a>
+        </div>
+
+        <ul class="hero-stats">
+          <li>162 个单元测试全绿</li>
+          <li>构建 0 警告 0 错误</li>
+          <li>零第三方图片与音频</li>
+        </ul>
+      </div>
+
+      <div class="hero-art">
+        <img src="assets/img/icon-512.png" alt="扫雷 2.0 图标" width="512" height="512">
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== 在线试玩 ============================== -->
+  <section class="section" id="play">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">在线试玩</p>
+        <h2>不用装任何东西，先玩一局</h2>
+        <p class="lead">
+          下面这个网页版按<strong>和桌面版完全相同的规则</strong>实现：首点必定安全、右键三态、双击 chord、胜利自动插旗。
+          想验证手感是否一致，直接下载桌面版对比即可。
+        </p>
+      </div>
+
+      <div class="game reveal" id="game">
+        <div class="game-bar">
+          <div class="game-diff" role="group" aria-label="难度">
+            <button class="chip is-active" type="button" data-diff="beginner">初级 9×9</button>
+            <button class="chip" type="button" data-diff="intermediate">中级 16×16</button>
+            <button class="chip" type="button" data-diff="expert">高级 30×16</button>
+          </div>
+          <div class="game-counters">
+            <span class="counter"><span>雷数</span><b id="gm-mines">010</b></span>
+            <button class="smiley" type="button" id="gm-reset" title="重新开始" aria-label="重新开始">🙂</button>
+            <span class="counter"><span>用时</span><b id="gm-time">000</b></span>
+            <button class="chip" type="button" id="gm-flagmode" title="触屏设备用：左键改为插旗">🚩 旗标模式</button>
+          </div>
+        </div>
+
+        <div class="board-wrap">
+          <div class="board" id="gm-board" role="grid" aria-label="扫雷棋盘"></div>
+        </div>
+
+        <p class="game-msg" id="gm-msg" role="status" aria-live="polite">左键翻开第一格开始计时。</p>
+        <p class="game-tip">
+          左键翻开 · 右键三态（旗 → 问号 → 空）· 双击已翻开的数字格 chord 批量展开 ·
+          触屏长按插旗 · 首次点击保证安全
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== 特性 ============================== -->
+  <section class="section" id="features">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">特性</p>
+        <h2>还原的每一条，都是原版那一条</h2>
+        <p class="lead">经典玩法不是"差不多"，而是逐条对齐；新加的东西都建立在这套手感之上。</p>
+      </div>
+
+      <div class="cards">
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">🖱️</div>
+          <h3>经典手感 100% 还原</h3>
+          <p>左键翻开 · 右键三态（旗 → 问号 → 空）· 双击 / 中键 / 左右键同按 chord · 首点保证安全 · 计时从第一次翻开开始 · 失败时展示全部雷位。</p>
+        </article>
+
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">🗺️</div>
+          <h3>6 章 36 关关卡模式</h3>
+          <p>每关一张固定盘面，按通关用时评星（★★★ / ★★ / ★），逐关解锁；通关弹结算卡片，游戏内「◀ 上一关 / 下一关 ▶」可以连着打。</p>
+        </article>
+
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">🔧</div>
+          <h3>三种道具</h3>
+          <p>放大镜（透视 3×3）· 声呐扫描（只报 3×3 里有几颗雷）· 时间冻结（暂停倒计时 20 秒）。每扫 20 颗雷攒一次「三选一」补给。</p>
+        </article>
+
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">🎨</div>
+          <h3>19 色可调主题</h3>
+          <p>调色板由 19 个颜色键组成，内置经典 / 深色 / 高对比 / 纸质四套配色；还能只覆盖其中任意一个颜色。</p>
+        </article>
+
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">🔊</div>
+          <h3>代码合成音效</h3>
+          <p>翻开 / 插旗 / chord / 踩雷 / 胜利 / 启动共 6 个音效，全部由代码实时合成 WAV，工程里没有一个音频文件。</p>
+        </article>
+
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">♿</div>
+          <h3>无障碍朗读</h3>
+          <p>自绘棋盘提供完整的 UI Automation 支持，屏幕阅读器可以逐格朗读"第 3 行第 5 列，已翻开，数字 2"。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== 关卡 ============================== -->
+  <section class="section" id="levels">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">关卡模式</p>
+        <h2>36 关，逐关解锁</h2>
+        <p class="lead">
+          关卡 = 一张固定的盘面 + 一个目标。每关写死一个随机种子并用锁定盘面创建，所以<strong>同一关永远是同一张盘</strong>——
+          这是能重试、能刷星、能分享的前提。
+        </p>
+      </div>
+
+      <div class="table-wrap reveal">
+        <table>
+          <caption class="sr-only" style="position:absolute;left:-9999px">关卡章节与星级门槛</caption>
+          <thead>
+            <tr><th>章</th><th>盘面</th><th>雷数</th><th>★★ 门槛</th><th>★★★ 门槛</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>第 1 章 入门</td><td>9×9</td><td>10 → 20</td><td>90s → 160s</td><td>50s → 90s</td></tr>
+            <tr><td>第 2 章 进阶</td><td>16×16</td><td>30 → 55</td><td>240s → 420s</td><td>140s → 240s</td></tr>
+            <tr><td>第 3 章 高手</td><td>30×16</td><td>70 → 120</td><td>480s → 900s</td><td>280s → 540s</td></tr>
+            <tr><td>第 4 章 专家</td><td>30×16</td><td>130 → 180</td><td>900s → 1200s</td><td>600s → 800s</td></tr>
+            <tr><td>第 5 章 大师</td><td>30×18</td><td>150 → 225</td><td>1120s → 1520s</td><td>750s → 1010s</td></tr>
+            <tr><td>第 6 章 宗师</td><td>32×20</td><td>190 → 290</td><td>1560s → 1960s</td><td>1040s → 1310s</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout reveal">
+        <strong>刻意不做强制限时。</strong>扫雷的失败条件本来就是踩雷，再加一个倒计时，等于惩罚"想清楚再点"这种正确玩法。
+        星级只看通关用时：通关即 ★、≤ 目标时间 ★★、≤ 挑战时间 ★★★。
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== 道具 ============================== -->
+  <section class="section" id="items">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">道具</p>
+        <h2>三种道具，各管一件事</h2>
+        <p class="lead">第一次进游戏每种各送 2 个；之后每扫到 20 颗雷，弹出一次「三选一」补给，自己挑一个。</p>
+      </div>
+
+      <div class="cards">
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">🔍</div>
+          <h3>放大镜</h3>
+          <p>透视以目标格为中心的 3×3 区域，把雷的位置直接标出来。</p>
+          <ul>
+            <li>不翻开、不插旗，因此不影响胜负判定</li>
+            <li>信息默认永久保留（可配置成若干秒后恢复迷雾）</li>
+          </ul>
+        </article>
+
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">📡</div>
+          <h3>声呐扫描</h3>
+          <p>只告诉你选中的 3×3 区域里<strong>有几颗雷</strong>，不告诉你位置。</p>
+          <ul>
+            <li>完全是"怎么看信息"，不改变棋盘任何状态</li>
+            <li>同一块区域可以重复扫（只是浪费道具）</li>
+          </ul>
+        </article>
+
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">🧊</div>
+          <h3>时间冻结</h3>
+          <p>倒计时暂停 20 秒，用来救一次"想太久了"。</p>
+          <ul>
+            <li>只影响用时，不影响棋盘</li>
+            <li>星级判定与最快记录自动跟着暂停</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== 渲染 ============================== -->
+  <section class="section" id="render">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">渲染与性能</p>
+        <h2>100 万格同屏，约 70 FPS</h2>
+        <p class="lead">
+          棋盘是纯矢量自绘。瓶颈原本是<strong>绘制调用次数</strong>而不是像素，所以远景把同色连续格合并成一条矩形、
+          再把结构相同的连续行合并成竖直色带——100 万次调用塌缩成个位数～几十次。
+        </p>
+      </div>
+
+      <ul class="stat-band reveal">
+        <li><b>14.4 ms</b><span>100 万格全景单帧</span></li>
+        <li><b>≈ 70 FPS</b><span>全景实测帧率</span></li>
+        <li><b>23×</b><span>优化前后提升</span></li>
+        <li><b>4096×4096</b><span>单局最大盘面</span></li>
+      </ul>
+
+      <div class="gallery" style="margin-top:22px">
+        <figure class="figure reveal">
+          <img src="assets/img/board-full.png" alt="1000×1000 棋盘全景渲染" width="1200" height="800" loading="lazy">
+          <figcaption>0.02× 全景：100 万格全部可见，同色行程与竖直色带合并后的样子。</figcaption>
+        </figure>
+        <figure class="figure reveal">
+          <img src="assets/img/board-zoom-01.png" alt="0.1 倍缩放渲染" width="1200" height="800" loading="lazy">
+          <figcaption>0.1×：约 14 万格可见，仍走远景降级路径。</figcaption>
+        </figure>
+        <figure class="figure reveal">
+          <img src="assets/img/board-zoom-05.png" alt="0.5 倍缩放渲染" width="1200" height="800" loading="lazy">
+          <figcaption>0.5×：格子已经能看清，切回逐格绘制 + 位图切片。</figcaption>
+        </figure>
+        <figure class="figure reveal">
+          <img src="assets/img/board-zoom-1.png" alt="1 倍缩放渲染" width="1200" height="800" loading="lazy">
+          <figcaption>1×：正常游玩视角，数字与旗子都是矢量画的。</figcaption>
+        </figure>
+        <figure class="figure reveal">
+          <img src="assets/img/board-heat.png" alt="雷密度热力图" width="1200" height="800" loading="lazy">
+          <figcaption>可选的雷密度热力图（按块统计，默认关闭——它会泄露未翻开区域的真实密度）。</figcaption>
+        </figure>
+      </div>
+
+      <div class="callout reveal">
+        以上图片全部是程序运行时用 <strong>真实 GPU 设备</strong>离屏渲染并导出的对照图，不是效果图。
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== 技术 ============================== -->
+  <section class="section" id="tech">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">技术</p>
+        <h2>零素材、可测试、分层干净</h2>
+        <p class="lead">
+          主题是纯调色板矢量自绘，音效由代码实时合成，图标是自绘的多尺寸 ICO——
+          这不只是洁癖，它直接回应了版权红线：<strong>本工程不含任何来自 Windows 7 扫雷的素材。</strong>
+        </p>
+      </div>
+
+      <div class="cards">
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">🧱</div>
+          <h3>两层结构</h3>
+          <p><code>MineSweeper.Core</code> 是纯 .NET 类库，零 UI 依赖，所有游戏规则都在这里；<code>MineSweeper.App</code> 只负责显示与输入。</p>
+          <p style="margin-top:.6em"><strong>铁律：</strong>"这段逻辑能不能不启动 UI 就测出来？" 能测就该放 Core。</p>
+        </article>
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">✅</div>
+          <h3>162 个单元测试</h3>
+          <p>关卡表的守门人、布雷与参数边界、1000×1000 全空盘不栈溢出、原子写盘与损坏降级、波形互不相同……全部可无 UI 回归，约 1 秒跑完。</p>
+        </article>
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">💾</div>
+          <h3>存档原子写盘</h3>
+          <p>设置、进度、记录、关卡进度、历史各自独立；损坏留备份重建，版本过新则拒读且不覆盖原文件。删掉数据目录即全部重置。</p>
+        </article>
+      </div>
+
+      <div class="badge-row reveal">
+        <span class="badge">C#</span>
+        <span class="badge">.NET 10</span>
+        <span class="badge">WinUI 3</span>
+        <span class="badge">Windows App SDK</span>
+        <span class="badge">Win2D</span>
+        <span class="badge">CommunityToolkit.Mvvm</span>
+        <span class="badge">xUnit</span>
+        <span class="badge">MSIX</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== 下载 ============================== -->
+  <section class="section" id="download">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">下载</p>
+        <h2>装上就能玩</h2>
+        <p class="lead">两种安装方式，内容完全一样。包是<strong>自包含</strong>的——不需要预装 .NET 或 Windows App SDK。</p>
+      </div>
+
+      <div class="dl-grid">
+        <article class="dl-card reveal">
+          <h3>🏬 Microsoft Store</h3>
+          <p>最省事：商店签名、无需信任任何证书，后续自动更新。</p>
+          <!-- 上架后把下面这个按钮的 href 换成商店链接（形如 https://apps.microsoft.com/detail/xxxx），
+               并把 class 里的 btn--soon 去掉、删掉 aria-disabled。 -->
+          <a class="btn btn--ghost btn--soon" href="#download" aria-disabled="true">即将上架</a>
+          <p class="dl-note">提交审核中，上架后这里会自动更新。</p>
+        </article>
+
+        <article class="dl-card reveal">
+          <h3>⬇️ GitHub Release</h3>
+          <p>立即可用。下载 <code>.msix</code> 与随包的 <code>.cer</code> 证书，先信任证书再双击安装。</p>
+          <a class="btn btn--primary" href="https://github.com/Fastrof/Minesweeper2.0/releases" target="_blank" rel="noopener">前往 Releases</a>
+          <p class="dl-note">也可以用 <code>build.cmd</code> 自己从源码编译。</p>
+        </article>
+      </div>
+
+      <div class="table-wrap reveal" style="margin-top:22px">
+        <table>
+          <thead><tr><th>项</th><th>要求</th></tr></thead>
+          <tbody>
+            <tr><td>系统</td><td>Windows 10 1809（17763）及以上 / Windows 11</td></tr>
+            <tr><td>架构</td><td>x64（ARM64 设备通过 Windows 11 的 x64 模拟运行）</td></tr>
+            <tr><td>.NET 运行时</td><td><strong>不需要</strong>——包内已包含</td></tr>
+            <tr><td>Windows App SDK</td><td><strong>不需要</strong>——包内已包含</td></tr>
+            <tr><td>磁盘占用</td><td>约 230 MB（自包含运行时占大部分；安装包本身 93 MB）</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout reveal">
+        <strong>GitHub 版第一次安装会提示"未知发布者"</strong>，因为它是自签名证书。用管理员 PowerShell 先信任随包证书即可：
+        <br><code>Import-Certificate -FilePath .\MineSweeper2.0-dev.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople</code>
+        <br>商店版没有这一步。
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== 常见问题 ============================== -->
+  <section class="section" id="faq">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="eyebrow">常见问题</p>
+        <h2>你可能想问的</h2>
+      </div>
+
+      <div class="faq reveal">
+        <details>
+          <summary>为什么键盘不能操作棋盘？</summary>
+          <p>这是刻意的设计——项目所有者的要求是纯鼠标操作，所以棋盘不是键盘焦点、也没有焦点框。设置面板里的文本框（种子、分享串）仍然可以用键盘输入。方向键 / 回车 / 空格都不会对棋盘产生作用，这不是故障。</p>
+        </details>
+
+        <details>
+          <summary>存档放在哪里？</summary>
+          <p>未打包版在 <code>%LOCALAPPDATA%\MineSweeper2\</code>，商店版在应用自己的本地数据文件夹里。里面有 <code>settings.json</code>（设置）、<code>progress.json</code>（进度与道具）、<code>levelprogress.json</code>（关卡）、<code>records.json</code>（最快记录）、<code>history.json</code>（累计统计）、<code>config.json</code>（可手改的配置）与 <code>app.log</code>（日志）。<strong>删掉这个目录就等于一切从头开始。</strong></p>
+        </details>
+
+        <details>
+          <summary>安装时提示"未知发布者" / 证书不受信任怎么办？</summary>
+          <p>GitHub Release 版用的是自签名证书，需要先把随包的 <code>.cer</code> 装进「受信任人」证书存储（见上面的命令）。Microsoft Store 版由商店签名，不会出现这个提示。</p>
+        </details>
+
+        <details>
+          <summary>会收集我的数据吗？</summary>
+          <p>不会。程序不含任何联网代码，没有账号、没有遥测、没有广告；所有存档只写在本机，卸载即删除。详见<a href="https://github.com/Fastrof/Minesweeper2.0/blob/main/PRIVACY.md" target="_blank" rel="noopener">隐私政策</a>。</p>
+        </details>
+
+        <details>
+          <summary>可以自己改难度和数值吗？</summary>
+          <p>可以。设置面板能自定义盘面宽度 / 高度 / 雷数（上限 4096×4096）；道具阈值、放大镜半径、冻结秒数等写在 <code>config.json</code> 里，改完不用重新编译。关卡数值集中在 <code>Core/Levels/LevelTable.cs</code> 一张表里。</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============================== 页脚 ============================== -->
+<footer class="site-footer">
+  <div class="container">
+    <p>© <span id="year">2026</span> Fastrof、Shinichi · 以 MIT 许可证发布 · 本工程不含任何来自 Windows 7 扫雷的素材</p>
+    <nav>
+      <a href="https://github.com/Fastrof/Minesweeper2.0" target="_blank" rel="noopener">源码</a>
+      <a href="https://github.com/Fastrof/Minesweeper2.0/releases" target="_blank" rel="noopener">下载</a>
+      <a href="https://github.com/Fastrof/Minesweeper2.0/blob/main/docs/DEVELOPMENT.md" target="_blank" rel="noopener">开发文档</a>
+      <a href="https://github.com/Fastrof/Minesweeper2.0/issues" target="_blank" rel="noopener">反馈问题</a>
+      <a href="en.html" hreflang="en" lang="en">English</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="assets/js/site.js"></script>
+<script src="assets/js/minesweeper.js"></script>
+</body>
+</html>
