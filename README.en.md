@@ -150,4 +150,4 @@ The ones people look up most often:
 
 ## License
 
-**For learning and discussion only.** This project contains no assets taken from Windows 7 Minesweeper.
+**For learning and discussion only.**
