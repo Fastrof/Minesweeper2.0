@@ -13,9 +13,9 @@ A Windows Minesweeper written from scratch: **reproduce the classic game 100% fi
 
 | | |
 |---|---|
-| **Version** | `v1.0.0` (first public release) |
+| **Version** | `v1.1.0` |
 | **Build** | `build.cmd` → **0 warnings, 0 errors** |
-| **Tests** | `test.cmd` → **162 / 162 passing** (~1 second) |
+| **Tests** | `test.cmd` → **265 / 265 passing** (~1 second) |
 | **Repository** | https://github.com/Fastrof/Minesweeper2.0 |
 | **License** | For learning and discussion only |
 
@@ -39,6 +39,8 @@ Left click to reveal · right click cycles through three states (flag → questi
 - **Code-synthesized sound effects**: reveal / flag / chord / explosion / victory / startup — six in total.
 - **Zoom, pan and far-zoom degradation**: up to **4096×4096** per game; 1,000,000 cells on screen measured at roughly **70 FPS**.
 - **Accessibility**: UI Automation support for the self-drawn board, so screen readers can read the board aloud.
+- **Achievements (v1.1)**: 31 achievements worth 1000 points across five categories, two of them hidden.
+- **Update check (v1.1)**: a silent check on startup plus a manual one in Settings, with optional **automatic download** of the installer. The Store build never checks (the Store handles updates).
 
 ## Quick start
 
@@ -89,6 +91,8 @@ src\MineSweeper.App\bin\x64\Debug\net10.0-windows10.0.19041.0\MineSweeper2.exe
 | `records.json` | Best times per difficulty |
 | `levelprogress.json` | Level progress (cleared / stars / best time / attempts) |
 | `history.json` | Lifetime statistics (counted since the very first sweep) |
+| `achievements.json` | Achievements and points (v1.1) |
+| `updatestate.json` | Update-check state: last check time / last seen version / skipped version (v1.1) |
 | `config.json` | Item and board configuration (hand-editable, no rebuild required) |
 | `app.log` | Diagnostic log |
 | `sounds\` | Sound effects synthesized on first run; **existing files are never overwritten** — drop in a same-named wav to replace one |
@@ -115,7 +119,7 @@ tests/
 
 ## Tests
 
-**All 162 test cases pass.**
+**All 265 test cases pass.**
 
 | File | Cases | Coverage |
 |---|---|---|

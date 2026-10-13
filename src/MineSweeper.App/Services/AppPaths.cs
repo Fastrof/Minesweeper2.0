@@ -1,8 +1,10 @@
 using MineSweeper.Core;
+using MineSweeper.Core.Achievements;
 using MineSweeper.Core.Items;
 using MineSweeper.Core.Levels;
 using MineSweeper.Core.Persistence;
 using MineSweeper.Core.Settings;
+using MineSweeper.Core.Updates;
 
 namespace MineSweeper.App.Services;
 
@@ -41,6 +43,15 @@ public static class AppPaths
     public static string HistoryFile => Path.Combine(DataDirectory, "history.json");
 
     public static string SoundsDirectory => Path.Combine(DataDirectory, "sounds");
+
+    /// <summary>成就与成就点（v1.1）。</summary>
+    public static string AchievementsFile => Path.Combine(DataDirectory, "achievements.json");
+
+    /// <summary>检查更新的状态：上次检查时间 / 已提示版本 / 已跳过版本（v1.1）。</summary>
+    public static string UpdateStateFile => Path.Combine(DataDirectory, "updatestate.json");
+
+    /// <summary>下载好的更新包（v1.1）。一个包 90+ MB，所以单独一个目录，且只保留最新一版。</summary>
+    public static string UpdatesDirectory => Path.Combine(DataDirectory, "updates");
 
     /// <summary>资源目录（随 exe 输出）。</summary>
     public static string AssetsDirectory => Path.Combine(AppContext.BaseDirectory, "Assets");
@@ -200,6 +211,34 @@ public static class AppPaths
         }
     }
 
+    private static bool? _isPackaged;
+
+    /// <summary>
+    /// 当前是不是"打包版（MSIX）"。
+    /// v1.1 有两处依赖它做产品决策：
+    /// ① 检查更新只在**未打包**（GitHub 侧载）版启用 —— 商店版由商店自己更新，
+    /// 而且不该把商店用户引导到 GitHub 去侧载；
+    /// ② 下载完的安装方式不同 —— 打包版能就地升级（要重启），未打包版只能唤起系统安装程序。
+    /// </summary>
+    public static bool IsPackaged => _isPackaged ??= DetectPackaged();
+
+    private static bool DetectPackaged()
+    {
+        try
+        {
+            return Windows.ApplicationModel.Package.Current is not null;
+        }
+        catch (InvalidOperationException)
+        {
+            // 没有包身份 = unpackaged
+            return false;
+        }
+        catch (TypeInitializationException)
+        {
+            return false;
+        }
+    }
+
     private static string ResolveDataDirectory()
     {
         // 打包版：用包的 LocalFolder（§7.2）
@@ -261,6 +300,20 @@ public static class AppPaths
             Log($"关卡进度加载警告：{levels.Message}");
         }
 
+        var achievementStore = new AchievementStore(AchievementsFile);
+        AchievementLoadResult achievements = achievementStore.Load();
+        if (achievements.HasWarning && achievements.Message is not null)
+        {
+            Log($"成就加载警告：{achievements.Message}");
+        }
+
+        var updateStore = new UpdateStateStore(UpdateStateFile);
+        UpdateStateLoadResult updateState = updateStore.Load();
+        if (updateState.HasWarning && updateState.Message is not null)
+        {
+            Log($"检查更新状态加载警告：{updateState.Message}");
+        }
+
         return new AppStorage(
             progressStore,
             progress.Progress,
@@ -272,7 +325,13 @@ public static class AppPaths
             settings,
             levelStore,
             levels.Progress,
-            levels);
+            levels,
+            achievementStore,
+            achievements.Progress,
+            achievements,
+            updateStore,
+            updateState.State,
+            updateState);
     }
 }
 
@@ -288,4 +347,10 @@ public sealed record AppStorage(
     SettingsLoadResult SettingsLoadResult,
     LevelProgressStore LevelStore,
     LevelProgress LevelProgress,
-    LevelProgressLoadResult LevelProgressLoadResult);
+    LevelProgressLoadResult LevelProgressLoadResult,
+    AchievementStore AchievementStore,
+    AchievementProgress AchievementProgress,
+    AchievementLoadResult AchievementLoadResult,
+    UpdateStateStore UpdateStateStore,
+    UpdateState UpdateState,
+    UpdateStateLoadResult UpdateStateLoadResult);

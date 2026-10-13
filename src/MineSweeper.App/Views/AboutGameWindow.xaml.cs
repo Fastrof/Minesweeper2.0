@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using MineSweeper.Core.Localization;
 using Microsoft.UI.Xaml.Input;
 using MineSweeper.App.Services;
 using MineSweeper.Core.Audio;
@@ -27,8 +28,19 @@ public sealed partial class AboutGameWindow : Window
         _notifier = notifier;
 
         InitializeComponent();
+        // 必须在 Loaded 之后扫：WinUI 的元素要等模板套用/测量后才进入可视化树，
+        // 刚 InitializeComponent 完时 VisualTreeHelper 看不到子元素（自检日志证实只看到 1 处）。
+        if (Content is FrameworkElement aboutRoot)
+        {
+            aboutRoot.Loaded += (_, _) =>
+            {
+                int localized = Services.XamlLocalizer.LocalizeOnce(aboutRoot);
+            Services.AppPaths.Log($"[LANG] {GetType().Name} 已翻译 {localized} 处文案");
+            };
+        }
 
-        AboutWindowChrome.Apply(this, "关于游戏");
+
+        AboutWindowChrome.Apply(this, Strings.Get("about.title.game"));
         LoadContent();
     }
 
@@ -37,14 +49,14 @@ public sealed partial class AboutGameWindow : Window
         TaglineText.Text = AboutText.Tagline;
 
         // 彩蛋 1 的点击目标：版本号这一行
-        VersionText.Text = $"版本 {AboutInfo.Version} · {AboutInfo.License}";
+        VersionText.Text = Strings.Get("about.version", AboutInfo.Version, Strings.TranslateLiteral(AboutInfo.License));
 
         BodyText.Text = AboutText.Body;
         TechText.Text = AboutText.Tech;
         StatsText.Text = AboutText.Stats;
 
-        RepoText.Text = $"开源地址：{AboutInfo.RepositoryText}";
-        LicenseText.Text = $"许可：{AboutInfo.License} · {AboutText.RedLine}";
+        RepoText.Text = Strings.Get("about.repo", AboutInfo.RepositoryText);
+        LicenseText.Text = Strings.Get("about.license", Strings.TranslateLiteral(AboutInfo.License), Strings.TranslateLiteral(AboutText.RedLine));
     }
 
     private void OnVersionTapped(object sender, TappedRoutedEventArgs e) => TryUnlockEgg();

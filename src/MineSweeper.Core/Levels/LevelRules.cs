@@ -23,10 +23,10 @@ public readonly record struct LevelOutcome(
         {
             if (!Won)
             {
-                return $"本局失败，用时 {Seconds:F1} 秒。同一关的盘面是固定的，重试还是这一张。";
+                return MineSweeper.Core.Localization.Strings.Get("toast.levelFailedBody", Seconds.ToString("F1"));
             }
 
-            string text = $"通关！{StarsText} 用时 {Seconds:F1} 秒";
+            string text = MineSweeper.Core.Localization.Strings.Get("flow.levelCleared", StarsText, Seconds.ToString("F1"));
             if (BestSeconds > 0)
             {
                 text += $"，最好成绩 {BestSeconds:F1} 秒";

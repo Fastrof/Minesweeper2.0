@@ -29,7 +29,7 @@ public sealed record MagnifierReveal(
 
         var lines = new List<string>
         {
-            $"中心 第{board.YOf(CenterIndex) + 1}行 第{board.XOf(CenterIndex) + 1}列 · 覆盖 {AffectedCount} 格 · 雷 {MineCount} / 空 {EmptyCount}",
+            MineSweeper.Core.Localization.Strings.Get("panel.summary", board.YOf(CenterIndex) + 1, board.XOf(CenterIndex) + 1, AffectedCount, MineCount, EmptyCount),
         };
 
         foreach (MagnifierCellInfo cell in Cells)
@@ -40,8 +40,8 @@ public sealed record MagnifierReveal(
                     ? "空"
                     : $"数字 {cell.AdjacentMines}";
 
-            string already = cell.WasAlreadyItemRevealed ? "（此前已透视）" : string.Empty;
-            lines.Add($"第{board.YOf(cell.Index) + 1}行 第{board.XOf(cell.Index) + 1}列：{content}{already}");
+            string already = cell.WasAlreadyItemRevealed ? MineSweeper.Core.Localization.Strings.Get("panel.alreadyRevealed") : string.Empty;
+            lines.Add(MineSweeper.Core.Localization.Strings.Get("panel.cellLine", board.YOf(cell.Index) + 1, board.XOf(cell.Index) + 1, content, already));
         }
 
         return string.Join(Environment.NewLine, lines);

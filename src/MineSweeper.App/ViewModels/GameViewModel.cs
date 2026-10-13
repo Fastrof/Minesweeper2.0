@@ -5,6 +5,7 @@ using MineSweeper.App.Services;
 using MineSweeper.Core;
 using MineSweeper.Core.Items;
 using MineSweeper.Core.Levels;
+using MineSweeper.Core.Localization;
 using MineSweeper.Core.Notifications;
 using MineSweeper.Core.Persistence;
 using Windows.ApplicationModel.DataTransfer;
@@ -57,7 +58,7 @@ public partial class GameViewModel : ObservableObject
         TotalMinesText = "10";
         TimerText = "000";
         SmileyGlyph = "🙂";
-        StatusText = "点击任意格开始";
+        StatusText = Strings.Get("status.ready");
         MagnifierCountText = "×0";
         MagnifierProgressText = "0 / 20";
         SonarCountText = "×0";
@@ -258,7 +259,7 @@ public partial class GameViewModel : ObservableObject
             ? $"关卡 {_currentLevel!.DisplayId}"
             : session.Settings.Mode switch
             {
-                GameMode.ClassicPure => "纯经典（无道具）",
+                GameMode.ClassicPure => Strings.Get("mode.classicPure"),
                 GameMode.ClassicWithItems => "经典 + 道具",
                 _ => "自定义",
             };
@@ -268,19 +269,19 @@ public partial class GameViewModel : ObservableObject
         StatusText = session.Status switch
         {
             GameStatus.Won => IsLevelRun
-                ? $"关卡通关！用时 {FormatSeconds(session.ElapsedSecondsInt)} 秒"
-                : $"胜利！用时 {FormatSeconds(session.ElapsedSecondsInt)} 秒",
+                ? Strings.Get("flow.winLevel", FormatSeconds(session.ElapsedSecondsInt))
+                : Strings.Get("flow.win", FormatSeconds(session.ElapsedSecondsInt)),
             GameStatus.Lost => IsLevelRun
                 ? "关卡失败 —— 同一关盘面固定，可重试"
-                : "踩雷失败 —— 已展示全部雷位",
+                : Strings.Get("status.defeat"),
             GameStatus.InProgress => IsLevelRun
-                ? $"关卡进行中 · {_currentLevel!.DisplayName}"
+                ? Strings.Get("mode.level", _currentLevel!.DisplayName)
                 : session.Settings.ItemsAvailable
-                    ? $"进行中 · 道具补给 {active.CorrectFlagsTowardNext}/{active.RewardThreshold}"
-                    : "进行中 · 经典 + 道具",
+                    ? Strings.Get("mode.items", active.CorrectFlagsTowardNext, active.RewardThreshold)
+                    : Strings.Get("mode.classicWithItems"),
             _ => session.Settings.ItemsAvailable
-                ? "点击任意格开始 · 首点安全"
-                : "点击任意格开始 · 首点安全",
+                ? Strings.Get("status.readyHint")
+                : Strings.Get("status.readyHint"),
         };
 
         RefreshLevelGoal();
@@ -347,6 +348,19 @@ public partial class GameViewModel : ObservableObject
             return;
         }
 
+        // "重打这一盘"是练习局：玩家已经看过这一局的雷位，成绩没有可比性，所以不进最快记录表。
+        // 想正常计成绩请用失败弹窗里的「换一张新盘」。这里明说一句，
+        // 免得玩家以为"我明明通关了却没进榜"是坏了。
+        if (IsPracticeRun)
+        {
+            _recordSubmitted = true;
+            _notifier.Publish(GameNotification.QuietInfo(
+                "练习局 · 不计最快记录",
+                Strings.Get("flow.practiceTime", Session.ElapsedSeconds.ToString("F1")),
+                "record.practice"));
+            return;
+        }
+
         _recordSubmitted = true;
 
         RecordSubmitResult result = _storage.RecordsStore.Submit(Session);
@@ -364,15 +378,73 @@ public partial class GameViewModel : ObservableObject
         {
             _notifier.Publish(GameNotification.QuietInfo(
                 "本局成绩",
-                $"用时 {Session.ElapsedSeconds:F1} 秒，未超过既有纪录。",
+                Strings.Get("flow.notRecord", Session.ElapsedSeconds.ToString("F1")),
                 "record.not-improved"));
         }
     }
 
-    /// <summary>把跨局进度落盘（插旗拿到道具、窗口关闭时调用）。</summary>
-    public void SaveProgress() => _storage.ProgressStore.Save(_storage.Progress);
+    /// <summary>
+    /// 本局是不是"重打同一张盘"的练习局。
+    ///
+    /// 用"当前会话是否就是那个练习会话"来判定，而不是自己维护一个布尔开关：
+    /// 这样任何一条开局路径（难度按钮 / 自定义 / 关卡 / 分享串）一换会话，标志就自动失效，
+    /// 不必去每个开局方法里补一行复位（少一处迟早会被忘记维护的地方）。
+    /// </summary>
+    public bool IsPracticeRun => ReferenceEquals(Session, _practiceSession);
 
-    /// <summary>本局种子分享串（§6.3）；尚未布雷时返回 null。</summary>
+    private GameSession? _practiceSession;
+
+    /// <summary>
+    /// 用**同一张盘**重开一局（失败弹窗的「重打这一盘」）。
+    ///
+    /// 走 <see cref="BoardSnapshot"/> 精确复现，而不是"沿用同一个种子"：
+    /// 普通模式（未锁定盘面）下雷位由 (seed, 首点) 共同决定，
+    /// 只给同一个 seed 会得到另一张盘 —— 这正是"点了重玩这一盘却换了盘"的根因。
+    ///
+    /// 复现出来的是一局全未翻开、计时归零、道具数量照旧的新局，
+    /// 只是**雷位与首点与上一局逐位相同**；因为玩家已经看过这张盘，所以标记成练习局（不进最快记录）。
+    /// </summary>
+    public bool RestartSameBoard(out string? error)
+    {
+        error = null;
+
+        if (Session is not { } previous)
+        {
+            error = "还没有对局可重打。";
+            return false;
+        }
+
+        if (!previous.Board.MinesPlaced)
+        {
+            // 还没点第一格时盘面尚未确定（普通模式是首点之后才布雷），没有"同一张盘"可言。
+            error = "这一局还没布雷（还没点第一格），没有盘面可复现。";
+            return false;
+        }
+
+        GameSession replayed;
+        try
+        {
+            BoardSnapshot snapshot = previous.CaptureSnapshot();
+            replayed = GameSession.CreateReplay(
+                snapshot, previous.Settings, Inventory, SystemClock.Instance, previous.DifficultyId);
+        }
+        catch (InvalidOperationException ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+
+        Session = replayed;
+        _practiceSession = replayed;
+        _currentLevel = null;
+        _recordSubmitted = false;
+
+        Refresh();
+        return true;
+    }
+
+    /// <summary>把跨局进度落盘（插旗拿到道具、窗口关闭时调用）。</summary>
+    public void SaveProgress() => _storage.ProgressStore.Save(_storage.Progress);    /// <summary>本局种子分享串（§6.3）；尚未布雷时返回 null。</summary>
     public string? GetShareCode()
     {
         if (Session is null || !Session.Board.MinesPlaced)
@@ -501,7 +573,7 @@ public partial class GameViewModel : ObservableObject
 
         LevelGoalText =
             $"{level.DisplayName} · {level.BoardText} · 现在通关可拿 {stars}" +
-            $"（★★ ≤ {level.TargetSeconds}s / ★★★ ≤ {level.ChallengeSeconds}s）{items}";
+            Strings.Get("levelDialog.stars", level.TargetSeconds, level.ChallengeSeconds) + items;
     }
 
     /// <summary>复制本局种子串到剪贴板（§6.3 的"分享同一盘"）。</summary>

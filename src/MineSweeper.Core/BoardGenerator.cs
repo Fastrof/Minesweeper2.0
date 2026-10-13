@@ -58,13 +58,13 @@ public static class BoardGenerator
 
         if (!board.IsValidIndex(firstClickIndex))
         {
-            error = "首点索引越界。";
+            error = MineSweeper.Core.Localization.Strings.Get("board.indexOutOfRange");
             return false;
         }
 
         if (board.MinesPlaced)
         {
-            error = "该棋盘已经布雷，不能重复布雷。";
+            error = MineSweeper.Core.Localization.Strings.Get("board.alreadyPlaced");
             return false;
         }
 
@@ -85,7 +85,7 @@ public static class BoardGenerator
 
         if (board.MineCount > allowedCells)
         {
-            error = $"雷数超过 {allowedCells}，无法为首点安全区（{safeZoneCells} 格）让出位置。";
+            error = MineSweeper.Core.Localization.Strings.Get("board.mineCountTooHigh", allowedCells, safeZoneCells);
             return false;
         }
 
@@ -115,7 +115,7 @@ public static class BoardGenerator
 
         if (board.MinesPlaced)
         {
-            error = "该棋盘已经布雷，不能重复布雷。";
+            error = MineSweeper.Core.Localization.Strings.Get("board.alreadyPlaced");
             return false;
         }
 
@@ -143,7 +143,7 @@ public static class BoardGenerator
             firstClick = board.Index(board.Width / 2, board.Height / 2);
             if (!RelocateMinesOutOfSafeZone(board, firstClick, radius, random))
             {
-                error = "盘面太密，无法为首点让出安全区。";
+                error = MineSweeper.Core.Localization.Strings.Get("board.tooDense");
                 return false;
             }
         }
@@ -315,7 +315,7 @@ public static class BoardGenerator
 
         if (board.MinesPlaced)
         {
-            error = "该棋盘已经布雷，不能重复布雷。";
+            error = MineSweeper.Core.Localization.Strings.Get("board.alreadyPlaced");
             return false;
         }
 
@@ -323,7 +323,7 @@ public static class BoardGenerator
         {
             if (!board.IsValidIndex(index))
             {
-                error = $"雷位索引越界：{index}。";
+                error = MineSweeper.Core.Localization.Strings.Get("board.mineIndexOutOfRange", index);
                 return false;
             }
 

@@ -15,7 +15,7 @@ internal static class AboutInfo
     /// 版本号。与 README §0.7 的 v1.0 及 <c>MineSweeper.App.csproj</c> 的 <c>&lt;Version&gt;</c>
     /// <b>三处必须一起改</b>；留两位（1.0 而不是 1.0.0），关于页面显示的更干净。
     /// </summary>
-    public const string Version = "1.0";
+    public const string Version = "1.3";
 
     /// <summary>主开发。</summary>
     public const string PrimaryAuthor = "Fastrof";

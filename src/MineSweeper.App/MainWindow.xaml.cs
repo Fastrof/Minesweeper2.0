@@ -11,14 +11,17 @@ using MineSweeper.App.Services;
 using MineSweeper.App.ViewModels;
 using MineSweeper.App.Views;
 using MineSweeper.Core;
+using MineSweeper.Core.Achievements;
 using MineSweeper.Core.Audio;
 using MineSweeper.Core.History;
 using MineSweeper.Core.Items;
 using MineSweeper.Core.Persistence;
 using MineSweeper.Core.Levels;
+using MineSweeper.Core.Localization;
 using MineSweeper.Core.Notifications;
 using MineSweeper.Core.Settings;
 using MineSweeper.Core.Themes;
+using MineSweeper.Core.Updates;
 using Windows.Graphics;
 
 namespace MineSweeper.App;
@@ -39,6 +42,33 @@ public sealed partial class MainWindow : Window
 
     private int _lastMagnifierCount;
     private bool _gameOverHandled;
+
+    // ---------------------------------------------------------- v1.1：成就
+    private readonly AchievementService _achievements;
+
+    /// <summary>本局是否用过某类道具（"不用道具通关高级""三种都用过"这类成就靠它）。</summary>
+    private bool _usedMagnifier;
+    private bool _usedSonar;
+    private bool _usedFreeze;
+
+    /// <summary>本局单次 chord 展开的最大格数（由 BoardView.ChordResolved 抛上来）。</summary>
+    private int _maxChordOpened;
+
+    /// <summary>成就自检（环境变量 SAOLEI_ACHIEVEMENTS）。</summary>
+    private string? _achievementCheckMode;
+
+    // ------------------------------------------------------ v1.1：检查更新
+    private readonly UpdateChecker _updateChecker;
+    private readonly UpdateDownloader _updateDownloader;
+
+    /// <summary>发现的新版本（发现后由更新卡片持有）。</summary>
+    private ReleaseInfo? _pendingUpdate;
+
+    /// <summary>已经下载好的安装包路径（下载完成后才有值）。</summary>
+    private string? _downloadedUpdatePath;
+
+    /// <summary>更新自检（环境变量 SAOLEI_UPDATE）。</summary>
+    private string? _updateCheckMode;
 
     // ---------------------------------------------------------------- 历史记录（v0.6）
 
@@ -130,6 +160,15 @@ public sealed partial class MainWindow : Window
         _board.BoardStateChanged += OnBoardStateChanged;
         _board.MagnifierPreviewChanged += OnMagnifierPreviewChanged;
         _board.SonarUsed += OnSonarUsed;
+        _board.ChordResolved += OnChordResolved;
+
+        // ---------------- v1.1：成就与检查更新 ----------------
+        _achievements = new AchievementService(_storage.AchievementStore, _storage.AchievementProgress);
+        _achievements.Unlocked += OnAchievementsUnlocked;
+
+        _updateChecker = new UpdateChecker(_storage.UpdateStateStore, _storage.UpdateState, () => AboutInfo.Version);
+        _updateDownloader = new UpdateDownloader(AppPaths.UpdatesDirectory, () => AppPaths.IsPackaged);
+        _updateDownloader.ProgressChanged += OnUpdateDownloadProgress;
 
         // 16ms 一跳：既刷新计时显示，也作为分帧展开的推进节拍。
         // 真正的限速在 GameViewModel.Tick 的时间片里，所以这里不需要再放大间隔。
@@ -141,6 +180,10 @@ public sealed partial class MainWindow : Window
         Activated += OnWindowActivated;
         Closed += OnWindowClosed;
 
+
+        // v1.3：先把界面语言定下来，后面所有取文案的地方才能拿到正确语言
+        Strings.SetLanguage(_storage.Settings.Language);
+        ApplyLanguage();
 
         // 主题与音效：先把设置应用到渲染器与播放器，再开第一局
         ApplySettings();
@@ -200,6 +243,20 @@ public sealed partial class MainWindow : Window
         ClearStaleNotificationsAsync();
         StartPerfProbeIfRequested();
         StartLevelCheckIfRequested();
+
+        // v1.1：先把"更新设置"刷到界面（它会决定 IsEnabled），再跑自检钩子 ——
+        // 顺序反过来的话，SAOLEI_UPDATE=off 设下的 IsEnabled=false 会被 ApplyUpdateSettings 重新打开。
+        ApplyUpdateSettings();
+
+        // v1.1 的两个新自检钩子
+        StartUpdateCheckIfRequested();
+        StartAchievementCheckIfRequested();
+
+        // 启动时的静默检查更新：排到下一轮再发请求，启动路径上不做任何网络等待
+        ScheduleAutoUpdateCheck();
+
+        // 升级后的「本版新增」：版本号变高就自动弹一次（第一次安装不弹）
+        CheckWhatsNewOnStartup();
 
         StartNotifyCheckIfRequested();
         StartAboutCheckIfRequested();
@@ -271,20 +328,17 @@ public sealed partial class MainWindow : Window
             {
                 foreach (BoardPalette palette in BoardPalette.BuiltIn)
                 {
-                    ThemeCombo.Items.Add(palette.DisplayName);
+                    ThemeCombo.Items.Add(Strings.TranslateLiteral(palette.DisplayName));
                 }
             }
 
-            _board.ApplyTheme(BoardTheme.FromPalette(settings.ResolvePalette()));
-            _board.ApplyHeatmap(settings.ShowMineDensityHeatmap);
+            ApplyBoardTheme();
 
             AudioToggle.IsOn = settings.AudioEnabled;
             VolumeSlider.Value = Math.Round(settings.AudioVolume * 100);
             _sound.Apply(settings.AudioEnabled, settings.AudioVolume);
 
-            HeatmapToggle.IsOn = settings.ShowMineDensityHeatmap;
-            LockedBoardToggle.IsOn = settings.LockedBoard;
-
+                
             int index = IndexOfTheme(settings.ThemeId);
             ThemeCombo.SelectedIndex = index >= 0 ? index : 0;
         }
@@ -333,7 +387,7 @@ public sealed partial class MainWindow : Window
         // 换主题时清掉逐项颜色覆盖：那些覆盖是给上一套主题调的，留着会让新主题看起来是坏的
         _storage.Settings.ThemeOverrides.Clear();
 
-        _board.ApplyTheme(BoardTheme.FromPalette(_storage.Settings.ResolvePalette()));
+        ApplyBoardTheme();
         SaveSettings();
 
         _notifier.Publish(GameNotification.QuietInfo("已切换主题", palette.DisplayName, "settings.theme"));
@@ -378,40 +432,16 @@ public sealed partial class MainWindow : Window
         AppPaths.Log($"[音效] 播放启动铃声（{reason}）。");
     }
 
-    private void OnHeatmapToggled(object sender, RoutedEventArgs e)
-    {
-        if (!_settingsReady)
-        {
-            return;
-        }
-
-        _storage.Settings.ShowMineDensityHeatmap = HeatmapToggle.IsOn;
-        _board.ApplyHeatmap(HeatmapToggle.IsOn);
-        SaveSettings();
-    }
-
-    private void OnLockedBoardToggled(object sender, RoutedEventArgs e)
-    {
-        if (!_settingsReady)
-        {
-            return;
-        }
-
-        _storage.Settings.LockedBoard = LockedBoardToggle.IsOn;
-        SaveSettings();
-
-        _notifier.Publish(GameNotification.QuietInfo(
-            LockedBoardToggle.IsOn ? "已开启锁定盘面" : "已关闭锁定盘面",
-            LockedBoardToggle.IsOn
-                ? "之后开的每一局都先按种子布雷再取安全首点：同一个种子必定是同一张盘。"
-                : "回到普通模式：同一个种子换个首点会是另一张盘。",
-            "settings.locked"));
-    }
-
-    /// <summary>放大镜信息面板（§5.6 备选）：列出即将透视的 3×3 区域的坐标与内容。</summary>
+            /// <summary>放大镜信息面板（§5.6 备选）：列出即将透视的 3×3 区域的坐标与内容。</summary>
     private void OnMagnifierPreviewChanged(object? sender, EventArgs e)
     {
         MagnifierReveal? preview = _board.MagnifierPreview;
+
+        // v1.3：面板标题与说明按当前道具切换（放大镜 / 声呐），
+        // 修掉「用声呐却写着放大镜区域」的名称与描述不符问题。
+        bool sonarAiming = _board.AimSlot == 1;
+        ItemInfoHeading.Text = MineSweeper.Core.Localization.Strings.Get(sonarAiming ? "ui.sonarArea" : "ui.magnifierArea");
+        ItemInfoHint.Text = MineSweeper.Core.Localization.Strings.Get(sonarAiming ? "ui.sonarAreaHint" : "ui.magnifierAreaHint");
 
         MagnifierPreviewText.Text = preview is not null && ViewModel.Session is not null
             ? preview.ToPanelText(ViewModel.Session.Board)
@@ -503,7 +533,7 @@ public sealed partial class MainWindow : Window
         GameMode.ClassicWithItems,
         FirstClickOpening: FirstClickOpeningSwitch.IsOn,
         PauseTimerOnFocusLoss: PauseTimerSwitch.IsOn,
-        LockedBoard: LockedBoardToggle.IsOn);
+        LockedBoard: false);   // v1.1：普通模式恒为 false（锁定能力只留给关卡固定盘与分享串复现）
 
     private int? TryReadSeed()
         => int.TryParse(SeedBox.Text?.Trim(), out int seed) ? seed : null;
@@ -516,6 +546,9 @@ public sealed partial class MainWindow : Window
             _perfProbePending = false;
             RunPerfProbe(full: true);
         }
+
+        // v1.1：把"本局用过哪些道具"记下来，供成就判定（每帧读两个只读属性，代价可忽略）
+        TrackSessionFacts();
 
         if (ViewModel.Tick())
         {
@@ -658,11 +691,16 @@ public sealed partial class MainWindow : Window
         {
             SettleLevel();
             FlushHistoryForCurrentSession(sessionEnded: true);
+            ReportAchievements();
             return;
         }
 
         ViewModel.SubmitRecordIfNeeded();
         FlushHistoryForCurrentSession(sessionEnded: true);
+
+        // 成就必须在"记录与历史都写完"之后评估：
+        // 累计类成就（胜场、扫雷数、最快用时）读的正是刚写进去的那些数字。
+        ReportAchievements();
 
         // 普通局踩雷：弹出"重开这一盘 / 退出游戏"的小窗口（v0.8）。
         // 关卡局有自己的结算卡片（失败时也会提示重开/返回），所以不叠加两层。
@@ -674,28 +712,1171 @@ public sealed partial class MainWindow : Window
 
     // ------------------------------------------------------------ 踩雷失败弹窗（v0.8）
 
+    /// <summary>
+    /// 某个难度的当前最快用时（两张表一起看：纯经典表与"经典 + 道具"表）。
+    /// 自检用它判断"练习局有没有偷偷进记录表"。
+    /// </summary>
+    private double? BestRecordSeconds(string difficultyId)
+    {
+        double? best = null;
+
+        foreach (Dictionary<string, BestTimeEntry> table in
+                 new[] { _storage.RecordsStore.Records.Classic, _storage.RecordsStore.Records.ClassicWithItem })
+        {
+            if (table.TryGetValue(difficultyId, out BestTimeEntry? entry) && entry is not null &&
+                (best is null || entry.Seconds < best))
+            {
+                best = entry.Seconds;
+            }
+        }
+
+        return best;
+    }
+
     /// <summary>踩雷后弹出的小窗口：让玩家直接选"重新开始这一盘"或"退出游戏"。</summary>
     private void ShowDefeatOverlay()
     {
         DefeatSummary.Text =
             $"{ViewModel.Session?.Board.Width}×{ViewModel.Session?.Board.Height} · " +
-            $"{ViewModel.Session?.Board.MineCount} 雷 · 用时 {ViewModel.Session?.ElapsedSecondsInt ?? 0} 秒\n" +
-            "重新开始会换一张新盘。";
+            MineSweeper.Core.Localization.Strings.Get("defeat.boardLine", ViewModel.Session?.Board.MineCount, ViewModel.Session?.ElapsedSecondsInt ?? 0) +
+            MineSweeper.Core.Localization.Strings.Get("defeat.replayHint") +
+            MineSweeper.Core.Localization.Strings.Get("defeat.newBoardHint");
 
-        DefeatRetryButton.Content = "重新开始这一盘";
+        DefeatRetryButton.Content = MineSweeper.Core.Localization.Strings.Get("defeat.sameBoard");
         DefeatOverlay.Visibility = Visibility.Visible;
-        AppPaths.Log("[DEFEAT] 已弹出失败窗口（重新开始这一盘 / 退出游戏）");
+        AppPaths.Log("[DEFEAT] 已弹出失败窗口（重打这一盘 / 换一张新盘 / 退出游戏）");
     }
+
+    // ============================================================================
+    //  v1.1：成就
+    // ============================================================================
+
+    /// <summary>上一次记录事实的那一局。换了对象就说明开了新局，本局事实要归零。</summary>
+    private GameSession? _factsSession;
+
+    private void OnAchievementsClick(object sender, RoutedEventArgs e) => ShowAchievementsOverlay();
+
+    private void OnAchievementsCloseClick(object sender, RoutedEventArgs e)
+        => AchievementsOverlay.Visibility = Visibility.Collapsed;
+
+    /// <summary>棋盘抛上来的 chord 结果：记下本局最大的一次展开格数。</summary>
+    private void OnChordResolved(object? sender, int openedCount)
+    {
+        if (openedCount > _maxChordOpened)
+        {
+            _maxChordOpened = openedCount;
+        }
+    }
+
+    /// <summary>
+    /// 每帧读一次"本局用过哪些道具"。
+    ///
+    /// 刻意不去逐个拦截道具按钮/事件：那样每加一个道具就多一处接线，容易漏。
+    /// 这两个只读属性覆盖了全部使用路径 —— <c>ItemUsed</c> 只由放大镜置位（Core 里唯一的赋值点），
+    /// <c>IsTimerFrozen</c> 只在冻结真的生效时为真。
+    /// 声呐没有对应的会话属性，所以它由 <c>BoardView.SonarUsed</c> 事件单独置位。
+    /// </summary>
+    private void TrackSessionFacts()
+    {
+        if (ViewModel.Session is not { } session)
+        {
+            return;
+        }
+
+        // 换了会话对象 = 开了新局：把"本局事实"归零。
+        // 这样就不必去 AttachSession 里再加一处复位（少一处容易忘记维护的地方）。
+        if (!ReferenceEquals(session, _factsSession))
+        {
+            _factsSession = session;
+            _usedMagnifier = false;
+            _usedSonar = false;
+            _usedFreeze = false;
+            _maxChordOpened = 0;
+        }
+
+        if (session.ItemUsed)
+        {
+            _usedMagnifier = true;
+        }
+
+        if (session.IsTimerFrozen)
+        {
+            _usedFreeze = true;
+        }
+    }
+
+    /// <summary>一局结束后评估成就。</summary>
+    private void ReportAchievements()
+    {
+        if (ViewModel.Session is not { } session)
+        {
+            return;
+        }
+
+        AchievementStats stats = AchievementService.BuildStats(
+            _history, _storage.LevelProgress, _storage.RecordsStore.Records);
+
+        string? levelId = ViewModel.CurrentLevel?.Id;
+        int stars = levelId is null ? 0 : _storage.LevelProgress.StarsOf(levelId);
+
+        AchievementFacts facts = AchievementService.BuildFacts(
+            session,
+            won: session.Status == GameStatus.Won,
+            wrongFlags: AchievementService.CountWrongFlags(session),
+            usedAnyItem: _usedMagnifier || _usedSonar || _usedFreeze,
+            maxChordOpened: _maxChordOpened,
+            levelId: levelId,
+            levelStars: stars,
+            usedMagnifier: _usedMagnifier,
+            usedSonar: _usedSonar,
+            usedFreeze: _usedFreeze,
+            stats: stats);
+
+        _achievements.Report(facts);
+    }
+
+    /// <summary>
+    /// 解锁提示。
+    /// 一次解锁多个也只发**一条** Toast：所有通知共用一个槽位，连发几条只会互相顶掉，
+    /// 玩家实际只能看到最后一条（见 §4.3）。
+    /// </summary>
+    private void OnAchievementsUnlocked(object? sender, IReadOnlyList<AchievementUnlock> unlocks)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (unlocks.Count == 0)
+            {
+                return;
+            }
+
+            int points = 0;
+            var names = new System.Text.StringBuilder();
+            for (int i = 0; i < unlocks.Count; i++)
+            {
+                points += unlocks[i].Definition.Points;
+                if (i < 4)
+                {
+                    if (i > 0)
+                    {
+                        names.Append('、');
+                    }
+
+                    names.Append(Strings.TranslateLiteral(unlocks[i].Definition.Title));
+                }
+            }
+
+            if (unlocks.Count > 4)
+            {
+                names.Append($"、等 {unlocks.Count} 个");
+            }
+
+            string title = unlocks.Count == 1
+                ? Strings.Get("ach.unlockOne", Strings.TranslateLiteral(unlocks[0].Definition.Title))
+                : Strings.Get("ach.unlockMany", unlocks.Count);
+
+            _notifier.Publish(GameNotification.Success(title, Strings.Get("ach.points", names.ToString(), points), "achievement.unlocked"));
+
+            // 面板开着就顺手刷新，免得玩家看到的是旧状态
+            if (AchievementsOverlay.Visibility == Visibility.Visible)
+            {
+                ShowAchievementsOverlay();
+            }
+        });
+    }
+
+    /// <summary>把成就列表重建一遍（每次打开面板都重建，保证状态最新）。</summary>
+    private void ShowAchievementsOverlay()
+    {
+        AchievementProgress progress = _achievements.Progress;
+
+        AchievementSummaryText.Text = Strings.Get(
+            "ach.summary", progress.UnlockedCount, AchievementCatalog.Count,
+            progress.TotalPoints, AchievementCatalog.TotalPoints);
+
+        AchievementListPanel.Children.Clear();
+
+        AchievementCategory? lastCategory = null;
+        foreach (AchievementDefinition definition in AchievementCatalog.All)
+        {
+            if (lastCategory != definition.Category)
+            {
+                lastCategory = definition.Category;
+                AchievementListPanel.Children.Add(new TextBlock
+                {
+                    Text = CategoryName(definition.Category),
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    Margin = new Thickness(0, 10, 0, 2),
+                });
+            }
+
+            bool unlocked = progress.IsUnlocked(definition.Id);
+            long value = progress.ProgressOf(definition.Id);
+
+            // 隐藏成就：没解锁前只说"有这么一条"，不给任何提示（与彩蛋的设计一致）
+            bool reveal = unlocked || !definition.Hidden;
+
+            var row = new StackPanel { Spacing = 2, Margin = new Thickness(0, 2, 0, 2) };
+
+            row.Children.Add(new TextBlock
+            {
+                Text = Strings.Get(
+                    "ach.row",
+                    unlocked ? "🏆" : "🔒",
+                    reveal ? Strings.TranslateLiteral(definition.Title) : "???",
+                    definition.Points),
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            });
+
+            row.Children.Add(new TextBlock
+            {
+                Text = reveal ? Strings.TranslateLiteral(definition.Description) : Strings.Get("ach.hidden"),
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.85,
+            });
+
+            if (reveal && definition.Target > 1)
+            {
+                long shown = Math.Clamp(value, 0, definition.Target);
+                row.Children.Add(new ProgressBar
+                {
+                    Minimum = 0,
+                    Maximum = definition.Target,
+                    Value = shown,
+                    Height = 4,
+                    Margin = new Thickness(0, 2, 0, 0),
+                });
+                row.Children.Add(new TextBlock
+                {
+                    Text = $"{shown} / {definition.Target}",
+                    FontSize = 11,
+                    Opacity = 0.7,
+                });
+            }
+
+            if (unlocked && progress.GetOrCreate(definition.Id).UnlockedAtUtc is { } at)
+            {
+                row.Children.Add(new TextBlock
+                {
+                    Text = Strings.Get("ach.unlockedAt", at.LocalDateTime.ToString("yyyy-MM-dd HH:mm")),
+                    FontSize = 11,
+                    Opacity = 0.6,
+                });
+            }
+
+            AchievementListPanel.Children.Add(row);
+        }
+
+        AchievementsOverlay.Visibility = Visibility.Visible;
+    }
+
+    private static string CategoryName(AchievementCategory category) => category switch
+    {
+        AchievementCategory.Progress => Strings.Get("ach.cat.progress"),
+        AchievementCategory.Speed => Strings.Get("ach.cat.speed"),
+        AchievementCategory.Levels => Strings.Get("ach.cat.levels"),
+        AchievementCategory.Items => Strings.Get("ach.cat.items"),
+        AchievementCategory.Challenge => Strings.Get("ach.cat.challenge"),
+        _ => Strings.Get("ach.cat.other"),
+    };
+
+    /// <summary>
+    /// 成就自检（SAOLEI_ACHIEVEMENTS）：
+    ///   check —— 用一条合成事实跑一遍判定（初级 8.5 秒通关 + 一次 chord 120 格），
+    ///            验证"解锁 → 落盘 → 面板汇总"整条链路；
+    ///   panel —— 直接打开成就面板（用于截图核对）。
+    /// </summary>
+    private void StartAchievementCheckIfRequested()
+    {
+        string? mode = Environment.GetEnvironmentVariable("SAOLEI_ACHIEVEMENTS");
+        if (string.IsNullOrWhiteSpace(mode))
+        {
+            return;
+        }
+
+        _achievementCheckMode = mode.Trim().ToLowerInvariant();
+        AppPaths.Log($"[ACHIEVEMENTCHECK] 自检模式={_achievementCheckMode}");
+
+        if (_achievementCheckMode == "panel")
+        {
+            DispatcherQueue.TryEnqueue(ShowAchievementsOverlay);
+            return;
+        }
+
+        AchievementStats stats = AchievementService.BuildStats(
+            _history, _storage.LevelProgress, _storage.RecordsStore.Records);
+
+        var facts = new AchievementFacts(
+            Won: true,
+            ElapsedSeconds: 8.5,
+            Width: 9,
+            Height: 9,
+            MineCount: 10,
+            RevealedCells: 71,
+            WrongFlags: 0,
+            UsedAnyItem: true,
+            MaxChordOpened: 120,
+            LevelId: null,
+            LevelStars: 3,
+            UsedMagnifier: true,
+            UsedSonar: false,
+            UsedFreeze: false,
+            IsStandardDifficulty: true,
+            Stats: stats);
+
+        IReadOnlyList<AchievementUnlock> unlocks = _achievements.Report(facts);
+
+        AppPaths.Log($"[ACHIEVEMENTCHECK] 合成事实（初级 8.5s 通关 · chord 120 格）→ 本次新解锁 {unlocks.Count} 个");
+        foreach (AchievementUnlock unlock in unlocks)
+        {
+            AppPaths.Log($"[ACHIEVEMENTCHECK]   {unlock.Definition.Id}「{unlock.Definition.Title}」{unlock.Progress}/{unlock.Target} +{unlock.Definition.Points}");
+        }
+
+        AppPaths.Log($"[ACHIEVEMENTCHECK] 面板汇总：已解锁 {_achievements.Progress.UnlockedCount}/{AchievementCatalog.Count} 个 · " +
+                     $"成就点 {_achievements.Progress.TotalPoints}/{AchievementCatalog.TotalPoints}");
+        AppPaths.Log($"[ACHIEVEMENTCHECK] 存档存在={File.Exists(AppPaths.AchievementsFile)} 路径={AppPaths.AchievementsFile}");
+    }
+
+    // ============================================================================
+    //  v1.1：检查更新
+    // ============================================================================
+
+    /// <summary>把设置里的"更新开关 + 当前版本 + 上次检查时间"刷到界面上。</summary>
+    // ============================================================================
+    //  v1.3：界面语言
+    // ============================================================================
+
+    /// <summary>
+    /// 把当前语言套到界面文字上。
+    /// v1.3 第一步先覆盖"一眼能看见"的这批：窗口标题、难度按钮、底部按钮行、设置面板若干标签；
+    /// 其余文案（Toast、关卡名、成就、错误提示）按批次迁进语言表 —— 见 DEVELOPMENT.md 的 v1.3 记录。
+    /// </summary>
+    private void ApplyLanguage()
+    {
+        // 自检用：SAOLEI_LANG=en 强制语言（截图核对英文界面，不需要改存档）
+        string? forced = Environment.GetEnvironmentVariable("SAOLEI_LANG");
+        if (!string.IsNullOrWhiteSpace(forced) && LanguageCatalog.Find(forced) is { } forcedLanguage)
+        {
+            AppPaths.Log($"[LANG] 自检强制语言：{forcedLanguage.Code}（设置里存的是 {_storage.Settings.Language}）");
+            Strings.SetLanguage(forcedLanguage.Code);
+            SettingsToggle.IsChecked = true;   // 顺便打开设置面板，方便截图核对
+        }
+        else
+        {
+            Strings.SetLanguage(_storage.Settings.Language);
+        }
+
+        ApplyUiTheme();
+
+        if (LanguageBox.Items.Count == 0)
+        {
+            foreach (LanguageInfo language in LanguageCatalog.All)
+            {
+                string label = language.IsComplete
+                    ? language.NativeName
+                    : $"{language.NativeName}（{Strings.Get("language.comingSoon")}）";
+
+                LanguageBox.Items.Add(new ComboBoxItem { Content = label, Tag = language.Code });
+            }
+        }
+
+        foreach (object candidate in LanguageBox.Items)
+        {
+            if (candidate is ComboBoxItem { Tag: string code } &&
+                string.Equals(code, Strings.CurrentCode, StringComparison.OrdinalIgnoreCase))
+            {
+                LanguageBox.SelectedItem = candidate;
+                break;
+            }
+        }
+
+        Title = Strings.Get("app.title");
+
+        BeginnerButton.Content = Strings.Get("btn.beginner");
+        IntermediateButton.Content = Strings.Get("btn.intermediate");
+        ExpertButton.Content = Strings.Get("btn.expert");
+        LevelsButton.Content = Strings.Get("btn.levels");
+
+        SettingsToggle.Content = Strings.Get("btn.settings");
+        HistoryButton.Content = Strings.Get("btn.history");
+        AchievementsButton.Content = Strings.Get("btn.achievements");
+        AboutGameButton.Content = Strings.Get("btn.aboutGame");
+        AboutAuthorsButton.Content = Strings.Get("btn.aboutAuthors");
+        WhatsNewButton.Content = Strings.Get("btn.whatsNew");
+
+        // ③-1「壳」：把 XAML 里的静态标签也套上当前语言（第一次调用时扫描登记）
+        LocalizeXamlChrome();
+
+        // Tooltip 这类元素属性不走上面的登记表，用通用助手补一遍（幂等，多扫一次无害）
+        Services.XamlLocalizer.LocalizeOnce(RootGrid);
+
+        AppPaths.Log($"[LANG] 界面语言={Strings.CurrentCode}（{LanguageCatalog.Resolve(Strings.CurrentCode).ChineseName}）");
+    }
+
+    private void OnLanguageChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // 构造期间填入下拉项也会触发（§10 决定 13 同样的理由）
+        if (!_settingsReady || LanguageBox.SelectedItem is not ComboBoxItem { Tag: string code })
+        {
+            return;
+        }
+
+        LanguageInfo language = LanguageCatalog.Resolve(code);
+        _storage.Settings.Language = language.Code;
+        SaveSettings();
+        ApplyLanguage();
+
+        AppPaths.Log($"[LANG] 玩家切换语言：{language.Code}（译文完整={language.IsComplete}）");
+
+        _notifier.Publish(GameNotification.QuietInfo(
+            Strings.Get("label.language"),
+            language.IsComplete
+                ? language.NativeName
+                : $"{language.NativeName} · {Strings.Get("language.comingSoon")}",
+            "settings.language"));
+    }
+
+    // ============================================================================
+    //  v1.3 ③-1：XAML 静态文案的本地化（扫描式）
+    // ============================================================================
+
+    /// <summary>登记表：怎么把这条文案写回控件 + 它对应的 key。第一次扫描时建立，切语言直接复用。</summary>
+    private readonly List<(Action<string> Apply, string Key)> _localizedChrome = [];
+
+    /// <summary>
+    /// 扫描一次可视化树，把"文字正好等于简体中文原文"的静态控件登记下来，并套上当前语言。
+    ///
+    /// <para>
+    /// <b>为什么用扫描而不是给每个控件起 x:Name</b>：XAML 里有五十来处静态标签，
+    /// 逐个加名字 + 逐行赋值既啰嗦，又容易在改 XAML 时漏掉或写错；而"改 XAML"恰恰是最危险的操作。
+    /// 扫描法一个字节的 XAML 都不用动，代价是"改文案要同步改语言表"——
+    /// 这条有兜底：表里没有的原文不会被替换，漏了在界面上一眼就能看出来。
+    /// </para>
+    /// <para>
+    /// 只处理静态文案：动态文本（种子、用时、状态行）与代码生成的 Toast 走各自的路，不受影响。
+    /// </para>
+    /// </summary>
+    private void LocalizeXamlChrome()
+    {
+        if (_localizedChrome.Count == 0)
+        {
+            // 反查表：简体中文原文 → key（同一条原文对应多个 key 时取先遇到的，文案一致所以无害）
+            var sources = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (string key in Strings.KeysOf("zh-Hans"))
+            {
+                string source = Strings.ResolveFor("zh-Hans", key);
+                if (!string.IsNullOrWhiteSpace(source) && !string.Equals(source, key, StringComparison.Ordinal))
+                {
+                    sources.TryAdd(source, key);
+                }
+            }
+
+            Collect(RootGrid, sources);
+
+            AppPaths.Log($"[LANG] 已登记 {_localizedChrome.Count} 处 XAML 静态文案");
+        }
+
+        foreach ((Action<string> apply, string key) in _localizedChrome)
+        {
+            apply(Strings.Get(key));
+        }
+    }
+
+    private void Collect(DependencyObject node, Dictionary<string, string> sources)
+    {
+        int count = VisualTreeHelper.GetChildrenCount(node);
+
+        for (int i = 0; i < count; i++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(node, i);
+
+            if (child is TextBlock block && sources.TryGetValue(block.Text ?? string.Empty, out string? textKey))
+            {
+                _localizedChrome.Add((value => block.Text = value, textKey));
+            }
+            else if (child is ContentControl { Content: string content } control &&
+                     sources.TryGetValue(content, out string? contentKey))
+            {
+                _localizedChrome.Add((value => control.Content = value, contentKey));
+            }
+            else if (child is TextBox { PlaceholderText: { Length: > 0 } placeholder } box &&
+                     sources.TryGetValue(placeholder, out string? placeholderKey))
+            {
+                // 输入框的灰字提示也算"玩家看得见的中文"
+                _localizedChrome.Add((value => box.PlaceholderText = value, placeholderKey));
+            }
+
+            if (child is ToggleSwitch toggle)
+            {
+                if (toggle.Header is string header && sources.TryGetValue(header, out string? headerKey))
+                {
+                    _localizedChrome.Add((value => toggle.Header = value, headerKey));
+                }
+
+                if (toggle.OnContent is string on && sources.TryGetValue(on, out string? onKey))
+                {
+                    _localizedChrome.Add((value => toggle.OnContent = value, onKey));
+                }
+
+                if (toggle.OffContent is string off && sources.TryGetValue(off, out string? offKey))
+                {
+                    _localizedChrome.Add((value => toggle.OffContent = value, offKey));
+                }
+            }
+
+            Collect(child, sources);
+        }
+    }
+
+    private void ApplyUpdateSettings()
+    {
+        bool storeBuild = AppPaths.IsPackaged;
+
+        UpdateVersionText.Text = Strings.Get("update.currentVersion", AppVersion.Normalize(AboutInfo.Version));
+
+        // 商店版：整块禁用 —— 由 Microsoft Store 负责更新
+        CheckUpdateButton.IsEnabled = !storeBuild;
+        AutoCheckUpdateSwitch.IsEnabled = !storeBuild;
+        AutoDownloadUpdateSwitch.IsEnabled = !storeBuild;
+
+        AutoCheckUpdateSwitch.IsOn = !storeBuild && _storage.Settings.AutoCheckUpdate;
+        AutoDownloadUpdateSwitch.IsOn = !storeBuild && _storage.Settings.AutoDownloadUpdate;
+
+        _updateChecker.IsEnabled = !storeBuild;
+
+        // v1.2：频率下拉（档位表来自 Core，界面不重复一份）
+        if (UpdateFrequencyBox.Items.Count == 0)
+        {
+            foreach ((int hours, string label) in UpdateFrequency.Options)
+            {
+                UpdateFrequencyBox.Items.Add(new ComboBoxItem { Content = Strings.TranslateLiteral(label), Tag = hours });
+            }
+        }
+
+        SelectFrequencyInCombo(_storage.Settings.UpdateCheckIntervalHours);
+
+        PauseUpdateSwitch.IsOn = UpdatePause.IsPaused(_storage.Settings.UpdatePausedUntilUtc, DateTimeOffset.Now);
+        PauseUntilPicker.Date = _storage.Settings.UpdatePausedUntilUtc ?? DateTimeOffset.Now.Add(UpdatePause.DefaultDuration);
+        PauseUntilPicker.IsEnabled = !storeBuild;
+        UpdateFrequencyBox.IsEnabled = !storeBuild;
+        PauseUpdateSwitch.IsEnabled = !storeBuild;
+        WhatsNewButton.IsEnabled = true;
+
+        RefreshUpdateStatus();
+    }
+
+    private void RefreshUpdateStatus()
+    {
+        if (AppPaths.IsPackaged)
+        {
+            UpdateStatusText.Text = "商店版由 Microsoft Store 自动更新，这里不需要检查。";
+            return;
+        }
+
+        string when = _storage.UpdateState.LastCheckUtc is { } last
+            ? Strings.Get("update.lastChecked", last.LocalDateTime.ToString("yyyy-MM-dd HH:mm"))
+            : Strings.Get("update.neverChecked");
+
+        string frequency = MineSweeper.Core.Localization.Strings.Get("update.frequency", MineSweeper.Core.Localization.Strings.TranslateLiteral(UpdateFrequency.LabelOf(_storage.Settings.UpdateCheckIntervalHours)));
+        string pause = UpdatePause.Remaining(_storage.Settings.UpdatePausedUntilUtc, DateTimeOffset.Now) is { } left
+            ? $"　·　已暂停更新（还剩约 {Math.Max(1, Math.Ceiling(left.TotalDays)):0} 天）"
+            : string.Empty;
+
+        UpdateStatusText.Text = $"{when}　·　{frequency}{pause}　·　{_updateChecker.LastMessage}";
+    }
+
+    /// <summary>
+    /// 启动时的静默检查。
+    /// 排到下一轮 DispatcherQueue 再发请求 —— 启动路径上不做任何网络等待（哪怕只有几百毫秒）。
+    /// </summary>
+    private void ScheduleAutoUpdateCheck()
+    {
+        // 正在跑 SAOLEI_UPDATE 自检时不自作主张再查一次：
+        // 否则 SAOLEI_UPDATE=off（验证"关掉就不发请求"）会被启动自动检查绕过去，
+        // 自检报出来的结论就是假的。
+        if (_updateCheckMode is not null)
+        {
+            AppPaths.Log($"[UPDATE] 有自检模式 {_updateCheckMode}，跳过启动自动检查。");
+            return;
+        }
+
+        if (AppPaths.IsPackaged || !_storage.Settings.AutoCheckUpdate)
+        {
+            return;
+        }
+
+        // v1.2：暂停期间一次请求都不发（尊重玩家意愿）
+        DateTimeOffset now = DateTimeOffset.Now;
+        if (UpdatePause.IsPaused(_storage.Settings.UpdatePausedUntilUtc, now))
+        {
+            AppPaths.Log($"[UPDATE] 玩家暂停了更新（到 {_storage.Settings.UpdatePausedUntilUtc:yyyy-MM-dd}），本次启动不检查。");
+            return;
+        }
+
+        // v1.2：按玩家选的频率决定这次启动要不要查
+        if (!UpdateSchedule.ShouldAutoCheck(_storage.UpdateState.LastCheckUtc, now, _storage.Settings.UpdateCheckIntervalHours))
+        {
+            AppPaths.Log($"[UPDATE] 未到检查间隔（{UpdateFrequency.LabelOf(_storage.Settings.UpdateCheckIntervalHours)}），本次启动不检查。");
+            return;
+        }
+
+        if (!_updateChecker.TryStartCheck(UpdateCheckTrigger.Startup, out string reason))
+        {
+            AppPaths.Log($"[UPDATE] 启动时不检查更新：{reason}");
+            return;
+        }
+
+        DispatcherQueue.TryEnqueue(async () => await RunUpdateCheckAsync(UpdateCheckTrigger.Startup, allowAutoDownload: true));
+    }
+
+    private async void OnCheckUpdateClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            // v1.2（口径 A）：暂停期间玩家还手动点检查，说明他就是想看更新 —— 立即结束暂停，
+            // 之后按设定频率照常自动检查。
+            if (UpdatePause.IsPaused(_storage.Settings.UpdatePausedUntilUtc, DateTimeOffset.Now))
+            {
+                _storage.Settings.UpdatePausedUntilUtc = null;
+                SaveSettings();
+
+                _settingsReady = false;
+                PauseUpdateSwitch.IsOn = false;
+                _settingsReady = true;
+
+                AppPaths.Log("[UPDATE] 玩家在暂停期间手动检查 → 暂停已取消，之后按设定频率自动检查。");
+                _notifier.Publish(GameNotification.Info(
+                    "已恢复自动检查更新", "你手动点了检查更新，暂停已取消。", "update.pause-lifted"));
+            }
+
+            if (!_updateChecker.TryStartCheck(UpdateCheckTrigger.Manual, out string reason))
+            {
+                UpdateStatusText.Text = reason;
+                AppPaths.Log($"[UPDATE] 手动检查被跳过：{reason}");
+                return;
+            }
+
+            CheckUpdateButton.IsEnabled = false;
+            UpdateStatusText.Text = MineSweeper.Core.Localization.Strings.Get("update.checking");
+            await RunUpdateCheckAsync(UpdateCheckTrigger.Manual, allowAutoDownload: false);
+            CheckUpdateButton.IsEnabled = !AppPaths.IsPackaged;
+        }
+        catch (Exception ex)
+        {
+            AppPaths.Log($"[UPDATE] 手动检查异常：{ex.GetType().Name}：{ex.Message}");
+            UpdateStatusText.Text = $"检查更新失败：{ex.GetType().Name}（不影响游戏）";
+        }
+    }
+
+    /// <summary>发一次请求并把结果反映到界面上。</summary>
+    private async Task RunUpdateCheckAsync(UpdateCheckTrigger trigger, bool allowAutoDownload)
+    {
+        UpdateCheckResult result = await _updateChecker.CheckAsync(trigger);
+
+        RefreshUpdateStatus();
+        AppPaths.Log($"[UPDATE] 检查结束：{result.Message}");
+
+        if (!result.HasUpdate || result.Release is not { } release)
+        {
+            if (trigger == UpdateCheckTrigger.Manual)
+            {
+                _notifier.Publish(GameNotification.Info("检查更新", result.Message, "update.checked"));
+            }
+
+            return;
+        }
+
+        // 自动检查 + 玩家开了自动下载 → 后台静默下好，再弹卡片问"要不要现在装"
+        bool silent = trigger == UpdateCheckTrigger.Startup
+                      && allowAutoDownload
+                      && _storage.Settings.AutoDownloadUpdate;
+
+        if (silent)
+        {
+            AppPaths.Log($"[UPDATE] 自动下载已开启，后台开始下载 {release.Version}");
+            ShowUpdateOverlay(release);
+            await DownloadUpdateAsync(release, silent: true);
+            return;
+        }
+
+        ShowUpdateOverlay(release);
+
+        if (trigger == UpdateCheckTrigger.Manual)
+        {
+            _notifier.Publish(GameNotification.Success("发现新版本", result.Message, "update.available"));
+        }
+    }
+
+    private void ShowUpdateOverlay(ReleaseInfo release)
+    {
+        _pendingUpdate = release;
+
+        UpdateTitleText.Text = $"发现新版本 {release.Version}";
+        UpdateVersionLineText.Text =
+            $"当前 {AppVersion.Normalize(AboutInfo.Version)} → 最新 {release.Version}" +
+            (release.PublishedAt is { } published ? $"　·　发布于 {published.LocalDateTime:yyyy-MM-dd}" : string.Empty);
+
+        UpdateNotesText.Text = Truncate(release.Notes, 600);
+
+        bool downloaded = !string.IsNullOrEmpty(_downloadedUpdatePath) && File.Exists(_downloadedUpdatePath);
+        UpdateDownloadButton.Visibility = downloaded ? Visibility.Collapsed : Visibility.Visible;
+        UpdateDownloadButton.IsEnabled = true;
+        UpdateInstallButton.Visibility = downloaded ? Visibility.Visible : Visibility.Collapsed;
+        UpdateProgressBar.Visibility = Visibility.Collapsed;
+        UpdateProgressText.Text = string.Empty;
+
+        UpdateHintText.Text = AppPaths.IsPackaged
+            ? "安装会结束当前这一局并重启游戏，以完成更新。"
+            : "安装时会把安装包交给系统的安装程序，你确认后即可完成更新。";
+
+        UpdateOverlay.Visibility = Visibility.Visible;
+    }
+
+    private async void OnUpdateDownloadClick(object sender, RoutedEventArgs e)
+    {
+        if (_pendingUpdate is not { } release)
+        {
+            return;
+        }
+
+        try
+        {
+            await DownloadUpdateAsync(release, silent: false);
+        }
+        catch (Exception ex)
+        {
+            AppPaths.Log($"[UPDATE] 下载异常：{ex.GetType().Name}：{ex.Message}");
+            UpdateProgressText.Text = $"下载失败：{ex.GetType().Name}（不影响游戏）";
+        }
+    }
+
+    private async Task DownloadUpdateAsync(ReleaseInfo release, bool silent)
+    {
+        ReleaseNotesHash.TryExtract(release.Notes, out string? expectedSha256);
+
+        UpdateProgressBar.Visibility = Visibility.Visible;
+        UpdateProgressBar.Value = 0;
+        UpdateProgressText.Text = "准备下载…";
+        UpdateDownloadButton.IsEnabled = false;
+
+        AppPaths.Log($"[UPDATE] 开始下载 {release.Version}（发布说明里的 SHA256={(expectedSha256 ?? "无")}）");
+
+        UpdateDownloadResult result = await _updateDownloader.DownloadAsync(release, expectedSha256);
+
+        UpdateDownloadButton.IsEnabled = true;
+
+        if (!result.Success || string.IsNullOrEmpty(result.FilePath))
+        {
+            UpdateProgressText.Text = result.Message;
+            AppPaths.Log($"[UPDATE] 下载失败：{result.Message}");
+
+            if (silent)
+            {
+                _notifier.Publish(GameNotification.Warning("更新包下载失败", result.Message, "update.download-failed"));
+            }
+
+            return;
+        }
+
+        _downloadedUpdatePath = result.FilePath;
+
+        UpdateProgressBar.Value = 1;
+        UpdateProgressText.Text = result.Message;
+        UpdateDownloadButton.Visibility = Visibility.Collapsed;
+        UpdateInstallButton.Visibility = Visibility.Visible;
+        UpdateHintText.Text = AppPaths.IsPackaged
+            ? "点「立即安装」会结束当前这一局并重启游戏，以完成更新。"
+            : "点「立即安装」会打开系统安装程序，确认后即可完成更新。";
+
+        _notifier.Publish(GameNotification.Success("更新包已下载", result.Message, "update.downloaded"));
+    }
+
+    private async void OnUpdateInstallClick(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_downloadedUpdatePath))
+        {
+            return;
+        }
+
+        try
+        {
+            UpdateInstallButton.IsEnabled = false;
+            UpdateInstallResult result = await _updateDownloader.InstallAsync(_downloadedUpdatePath);
+            UpdateHintText.Text = result.Message;
+            AppPaths.Log($"[UPDATE] 安装结果：成功={result.Success} 需要重启={result.NeedsRestart} 消息={result.Message}");
+
+            if (result.Success)
+            {
+                // 打包版：Windows 已经结束本进程，走到这里通常也不会再往下执行；
+                // 未打包版：安装程序已经打开，这里只把窗口收起来免得挡着。
+                _pendingUpdate = null;
+                Close();
+            }
+            else
+            {
+                UpdateInstallButton.IsEnabled = true;
+                _notifier.Publish(GameNotification.Warning("自动安装失败", result.Message, "update.install-failed"));
+            }
+        }
+        catch (Exception ex)
+        {
+            AppPaths.Log($"[UPDATE] 安装异常：{ex.GetType().Name}：{ex.Message}");
+            UpdateHintText.Text = $"安装失败：{ex.GetType().Name}";
+            UpdateInstallButton.IsEnabled = true;
+        }
+    }
+
+    private void OnUpdateOpenPageClick(object sender, RoutedEventArgs e)
+        => OpenExternalUrl(UpdateChecker.ReleasesPageUrl);
+
+    private void OnUpdateSkipClick(object sender, RoutedEventArgs e)
+    {
+        _updateChecker.SkipVersion(_pendingUpdate?.Version);
+        RefreshUpdateStatus();
+        UpdateOverlay.Visibility = Visibility.Collapsed;
+        _notifier.Publish(GameNotification.Info("已跳过这个版本", _updateChecker.LastMessage, "update.skipped"));
+    }
+
+    private void OnUpdateLaterClick(object sender, RoutedEventArgs e)
+        => UpdateOverlay.Visibility = Visibility.Collapsed;
+
+    private void OnUpdateDownloadProgress(object? sender, UpdateDownloadProgress progress)
+    {
+        // 进度回调来自后台线程，必须切回 UI 线程再碰控件
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            UpdateProgressBar.Visibility = Visibility.Visible;
+            UpdateProgressBar.Value = progress.Fraction;
+            UpdateProgressText.Text = progress.Text;
+        });
+    }
+
+    private void OnAutoCheckUpdateToggled(object sender, RoutedEventArgs e)
+    {
+        // 构造期间 XAML 的 IsOn 会触发 Toggled，那时字段还没准备好（§10 决定 13）
+        if (!_settingsReady)
+        {
+            return;
+        }
+
+        _storage.Settings.AutoCheckUpdate = AutoCheckUpdateSwitch.IsOn;
+        SaveSettings();
+        _updateChecker.IsEnabled = !AppPaths.IsPackaged && AutoCheckUpdateSwitch.IsOn;
+        AppPaths.Log($"[UPDATE] 自动检查更新={(AutoCheckUpdateSwitch.IsOn ? "开" : "关")}");
+    }
+
+    private void OnAutoDownloadUpdateToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_settingsReady)
+        {
+            return;
+        }
+
+        _storage.Settings.AutoDownloadUpdate = AutoDownloadUpdateSwitch.IsOn;
+        SaveSettings();
+        AppPaths.Log($"[UPDATE] 自动下载更新包={(AutoDownloadUpdateSwitch.IsOn ? "开" : "关")}");
+
+        // 刚打开开关时，如果已经发现新版本但还没下，就顺手开始下 —— 玩家的意图很明确
+        if (AutoDownloadUpdateSwitch.IsOn
+            && _pendingUpdate is { } release
+            && string.IsNullOrEmpty(_downloadedUpdatePath)
+            && UpdateOverlay.Visibility == Visibility.Visible)
+        {
+            _ = DownloadUpdateAsync(release, silent: false);
+        }
+    }
+
+    /// <summary>打开一个外部链接。打包版优先走 Launcher，未打包版走 shell 关联。</summary>
+    private static async void OpenExternalUrl(string url)
+    {
+        try
+        {
+            if (AppPaths.IsPackaged)
+            {
+                await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            AppPaths.Log($"[UPDATE] Launcher 打开链接失败，改用 shell：{ex.GetType().Name}");
+        }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            AppPaths.Log($"[UPDATE] 打开链接失败：{ex.GetType().Name}：{ex.Message}");
+        }
+    }
+
+    private static string Truncate(string? text, int max)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "（这次发布没有写更新说明）";
+        }
+
+        string trimmed = text.Trim();
+        return trimmed.Length <= max ? trimmed : trimmed[..max] + "…";
+    }
+
+    /// <summary>
+    /// 更新自检（SAOLEI_UPDATE）：
+    ///   check    —— 真的发一次请求，把结果写进 app.log（核对版本比较与限流）；
+    ///   download —— check + 真的把安装包下下来（核对进度、哈希校验与目录清理）；
+    ///   panel    —— 用假数据打开更新卡片（核对排版，不联网）；
+    ///   off      —— 验证"关掉开关就一次都不发请求"。
+    /// </summary>
+    private void StartUpdateCheckIfRequested()
+    {
+        string? mode = Environment.GetEnvironmentVariable("SAOLEI_UPDATE");
+        if (string.IsNullOrWhiteSpace(mode))
+        {
+            return;
+        }
+
+        _updateCheckMode = mode.Trim().ToLowerInvariant();
+        AppPaths.Log($"[UPDATECHECK] 自检模式={_updateCheckMode}");
+
+        if (_updateCheckMode == "whatsnew")
+        {
+            DispatcherQueue.TryEnqueue(() => ShowWhatsNew(WhatsNewCatalog.Find(AboutInfo.Version)));
+            return;
+        }
+
+        if (_updateCheckMode == "off")
+        {
+            _updateChecker.IsEnabled = false;
+            bool allowed = _updateChecker.TryStartCheck(UpdateCheckTrigger.Manual, out string reason);
+            AppPaths.Log($"[UPDATECHECK] IsEnabled=false 时允许检查={allowed}（期望 False），原因={reason}");
+            return;
+        }
+
+        DispatcherQueue.TryEnqueue(async () => await RunUpdateSelfCheckAsync());
+    }
+
+    private async Task RunUpdateSelfCheckAsync()
+    {
+        if (_updateCheckMode == "panel")
+        {
+            ShowUpdateOverlay(FakeReleaseForLayoutCheck());
+            AppPaths.Log("[UPDATECHECK] 已用假数据打开更新卡片（未联网）");
+            return;
+        }
+
+        bool allowed = _updateChecker.TryStartCheck(UpdateCheckTrigger.Manual, out string reason);
+        AppPaths.Log($"[UPDATECHECK] 允许检查={allowed}，原因={reason}");
+        if (!allowed)
+        {
+            return;
+        }
+
+        UpdateCheckResult result = await _updateChecker.CheckAsync(UpdateCheckTrigger.Manual);
+        AppPaths.Log($"[UPDATECHECK] 结果：已联网检查={result.CheckedNow} 有新版本={result.HasUpdate} 消息={result.Message}");
+
+        if (result.Release is not { } release)
+        {
+            return;
+        }
+
+        AppPaths.Log($"[UPDATECHECK] 最新版本={release.Version} 标题={release.DisplayName} 附件={release.Assets.Count} 个");
+
+        ReleaseNotesHash.TryExtract(release.Notes, out string? expected);
+        AppPaths.Log($"[UPDATECHECK] 发布说明中的 SHA256={(expected ?? "（没写）")}");
+        AppPaths.Log($"[UPDATECHECK] 选包结果：{UpdateAssetSelector.SelectInstaller(release.Assets, UpdateDownloader.CurrentArchitecture, out string selectReason)} —— {selectReason}");
+
+        if (_updateCheckMode == "download")
+        {
+            UpdateDownloadResult download = await _updateDownloader.DownloadAsync(release, expected);
+            AppPaths.Log($"[UPDATECHECK] 下载：成功={download.Success} 路径={download.FilePath} 消息={download.Message}");
+        }
+
+        ShowUpdateOverlay(release);
+    }
+
+    // ============================================================================
+    //  v1.2：检查频率 / 暂停更新 / 本版新增
+    // ============================================================================
+
+    private void OnUpdateFrequencyChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // 构造期间填入下拉项也会触发，那时字段还没准备好（§10 决定 13 同样的理由）
+        if (!_settingsReady || UpdateFrequencyBox.SelectedItem is not ComboBoxItem item || item.Tag is not int hours)
+        {
+            return;
+        }
+
+        _storage.Settings.UpdateCheckIntervalHours = UpdateFrequency.Normalize(hours);
+        SaveSettings();
+        RefreshUpdateStatus();
+
+        AppPaths.Log($"[UPDATE] 自动检查频率改为：{UpdateFrequency.LabelOf(_storage.Settings.UpdateCheckIntervalHours)}");
+    }
+
+    private void OnPauseUpdateToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_settingsReady)
+        {
+            return;
+        }
+
+        if (PauseUpdateSwitch.IsOn)
+        {
+            // 日历上选的是未来某天就用它；没选/选了过去就默认暂停 7 天
+            DateTimeOffset until = PauseUntilPicker.Date is { } picked && picked > DateTimeOffset.Now
+                ? picked
+                : DateTimeOffset.Now.Add(UpdatePause.DefaultDuration);
+
+            _storage.Settings.UpdatePausedUntilUtc = until;
+            PauseUntilPicker.Date = until;
+
+            AppPaths.Log($"[UPDATE] 玩家暂停更新到 {until:yyyy-MM-dd}。");
+            _notifier.Publish(GameNotification.Info(
+                "已暂停自动检查更新",
+                $"在 {until.LocalDateTime:yyyy-MM-dd} 之前不再自动检查；期间手动点「检查更新」会立即恢复自动检查。",
+                "update.paused"));
+        }
+        else
+        {
+            _storage.Settings.UpdatePausedUntilUtc = null;
+            AppPaths.Log("[UPDATE] 玩家取消了暂停更新。");
+        }
+
+        SaveSettings();
+        RefreshUpdateStatus();
+    }
+
+    private void OnPauseUntilChanged(CalendarDatePicker sender, CalendarDatePickerDateChangedEventArgs args)
+    {
+        if (!_settingsReady || args.NewDate is not { } picked)
+        {
+            return;
+        }
+
+        // 只有"暂停中"才需要跟着改到期日；否则这个日期只是下次暂停的预选值
+        if (!PauseUpdateSwitch.IsOn)
+        {
+            return;
+        }
+
+        _storage.Settings.UpdatePausedUntilUtc = picked > DateTimeOffset.Now
+            ? picked
+            : DateTimeOffset.Now.Add(UpdatePause.DefaultDuration);
+
+        SaveSettings();
+        RefreshUpdateStatus();
+        AppPaths.Log($"[UPDATE] 暂停到期日改为 {_storage.Settings.UpdatePausedUntilUtc:yyyy-MM-dd}。");
+    }
+
+    private void SelectFrequencyInCombo(int hours)
+    {
+        int normalized = UpdateFrequency.Normalize(hours);
+
+        foreach (object candidate in UpdateFrequencyBox.Items)
+        {
+            if (candidate is ComboBoxItem { Tag: int value } && value == normalized)
+            {
+                UpdateFrequencyBox.SelectedItem = candidate;
+                return;
+            }
+        }
+    }
+
+    /// <summary>升级后自动弹一次「本版新增」——顺便把"上次运行版本"更新掉。</summary>
+    private void CheckWhatsNewOnStartup()
+    {
+        string current = AboutInfo.Version;
+        string lastRun = _storage.Settings.LastRunVersion;
+
+        bool show = WhatsNewCatalog.ShouldShow(lastRun, current);
+
+        AppPaths.Log($"[WHATSNEW] 上次运行={lastRun switch { "" => "（首次安装）", _ => lastRun }} 当前={current} 展示={show}");
+
+        if (show && WhatsNewCatalog.Find(current) is { } entry)
+        {
+            // 排到下一轮：别在窗口还没画出来的时候弹
+            DispatcherQueue.TryEnqueue(() => ShowWhatsNew(entry));
+        }
+
+        if (!string.Equals(lastRun, current, StringComparison.Ordinal))
+        {
+            _storage.Settings.LastRunVersion = current;
+            SaveSettings();
+        }
+    }
+
+    private void OnWhatsNewClick(object sender, RoutedEventArgs e)
+        => ShowWhatsNew(WhatsNewCatalog.Find(AboutInfo.Version));
+
+    private void OnWhatsNewCloseClick(object sender, RoutedEventArgs e)
+        => WhatsNewOverlay.Visibility = Visibility.Collapsed;
+
+    /// <summary>展示「本版新增」。找不到对应版本条目时给一句兜底文案，绝不弹空卡片。</summary>
+    private void ShowWhatsNew(WhatsNewEntry? entry)
+    {
+        WhatsNewTitleText.Text = entry is null
+            ? MineSweeper.Core.Localization.Strings.Get("whatsnew.title", "v" + AppVersion.Normalize(AboutInfo.Version))
+            : MineSweeper.Core.Localization.Strings.Get("whatsnew.title", entry.Title);
+
+        WhatsNewListPanel.Children.Clear();
+
+        if (entry is null || entry.Highlights.Count == 0)
+        {
+            WhatsNewListPanel.Children.Add(new TextBlock
+            {
+                Text = "这一版没有单独的更新说明。",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.85,
+            });
+        }
+        else
+        {
+            foreach (string line in entry.Highlights)
+            {
+                WhatsNewListPanel.Children.Add(new TextBlock
+                {
+                    Text = "· " + line,
+                    TextWrapping = TextWrapping.Wrap,
+                });
+            }
+        }
+
+        WhatsNewOverlay.Visibility = Visibility.Visible;
+        AppPaths.Log($"[WHATSNEW] 已展示 {entry?.Version ?? "（无条目）"}（{entry?.Highlights.Count ?? 0} 条）");
+    }
+
+    /// <summary>自检用的假发布数据（只为了核对卡片排版，不联网、不落盘）。</summary>
+    private static ReleaseInfo FakeReleaseForLayoutCheck()
+        => new(
+            "1.2.0",
+            "v1.2.0",
+            "扫雷 2.0 v1.2.0（自检假数据）",
+            "## 本次更新\n\n- 这是一条自检用的假更新说明，用来核对更新卡片的排版\n- 第二行说明\n\n" +
+            "SHA256: " + new string('A', 64),
+            UpdateChecker.ReleasesPageUrl,
+            DateTimeOffset.Now,
+            [new ReleaseAsset("MineSweeper2.0_1.2.0.0_x64.msix", "https://example.com/fake.msix", 97_000_000)]);
 
     private void HideDefeatOverlay() => DefeatOverlay.Visibility = Visibility.Collapsed;
 
     private void OnDefeatRetryClick(object sender, RoutedEventArgs e)
     {
         HideDefeatOverlay();
+        RestartSameBoard();
+        AppPaths.Log("[DEFEAT] 玩家选择：重打这一盘（同一张盘 · 练习局）");
+    }
+
+    /// <summary>「换一张新盘」：难度/模式不变，换一张新盘（成绩照常计最快记录）。</summary>
+    private void OnDefeatNewBoardClick(object sender, RoutedEventArgs e)
+    {
+        HideDefeatOverlay();
 
         // 沿用笑脸按钮那条路径：关卡局重开同一关，普通局沿用**这一局真实生效的**盘面参数。
         RestartCurrentGame();
-        AppPaths.Log("[DEFEAT] 玩家选择：重新开始这一盘");
+        AppPaths.Log("[DEFEAT] 玩家选择：换一张新盘");
     }
 
     private void OnDefeatExitClick(object sender, RoutedEventArgs e)
@@ -712,6 +1893,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OnSonarUsed(object? sender, SonarScanResult scan)
     {
+        _usedSonar = true;   // v1.1：成就判定要知道本局用过声呐
         if (ViewModel.Session is not { } session)
         {
             return;
@@ -727,16 +1909,16 @@ public sealed partial class MainWindow : Window
         int toCol = centerCol + scan.Radius;
 
         SonarTitle.Text = scan.MineCount == 0
-            ? "声呐扫描：这一片是空的"
-            : $"声呐扫描：这一片有 {scan.MineCount} 颗雷";
+            ? MineSweeper.Core.Localization.Strings.Get("sonar.dialogEmpty")
+            : MineSweeper.Core.Localization.Strings.Get("sonar.dialogTitle", scan.MineCount);
 
         // 把"哪几行哪几列"写清楚——这正是玩家事后最容易忘的信息
         SonarArea.Text =
-            $"区域：第 {fromRow}~{toRow} 行 × 第 {fromCol}~{toCol} 列（{size}×{size}）\n" +
-            $"中心：第 {centerRow} 行 第 {centerCol} 列\n" +
-            "只报数量，不显示雷的位置。";
+            MineSweeper.Core.Localization.Strings.Get("sonar.dialogArea", fromRow, toRow, fromCol, toCol, size) + "\n" +
+            MineSweeper.Core.Localization.Strings.Get("sonar.dialogCenter", centerRow, centerCol) + "\n" +
+            MineSweeper.Core.Localization.Strings.Get("sonar.dialogOnlyCount");
 
-        SonarRemaining.Text = $"剩余声呐扫描 ×{scan.RemainingCount}";
+        SonarRemaining.Text = MineSweeper.Core.Localization.Strings.Get("sonar.remaining", scan.RemainingCount);
         SonarOverlay.Visibility = Visibility.Visible;
     }
 
@@ -832,6 +2014,37 @@ public sealed partial class MainWindow : Window
             $"重开：{width}×{height} / {mines} 雷",
             $"沿用上一局的难度与模式 · {ViewModel.ModeText}",
             "game.restart"));
+    }
+
+    /// <summary>
+    /// 失败弹窗的「重打这一盘」：**同一张盘**重开一局（练习局，不计最快记录）。
+    ///
+    /// 与 <see cref="RestartCurrentGame"/> 的区别就在这里：
+    /// 后者只沿用盘面参数、种子取种子输入框（留空即新随机盘），所以**会换盘**；
+    /// 而玩家点的是"重打这一盘"，期望的是原来那张 —— 这是玩家报的 bug。
+    /// 修法是走 Core 现成的快照复现（<c>CaptureSnapshot</c> + <c>CreateReplay</c>，分享串复现也是这条路），
+    /// 保证雷位与首点逐位一致。
+    /// </summary>
+    private void RestartSameBoard()
+    {
+        if (!ViewModel.RestartSameBoard(out string? error))
+        {
+            // 复现不了就退回"换一张新盘"：至少别把玩家卡在一个打不开的弹窗后面。
+            AppPaths.Log($"[DEFEAT] 重打同一张盘失败，退回换新盘：{error}");
+            _notifier.Publish(GameNotification.Warning(
+                "重打这一盘失败", error ?? "无法复现这一张盘。", "game.restart-failed"));
+            RestartCurrentGame();
+            return;
+        }
+
+        AttachSession();
+
+        AppPaths.Log($"[DEFEAT] 已按同一张盘重开（练习局）：{DescribeCurrentGame()} · 种子={ViewModel.Session?.Seed}");
+
+        _notifier.Publish(GameNotification.QuietInfo(
+            "重打这一盘",
+            "盘面与上一局完全一致 · 练习局不计入最快记录（想计成绩请点「换一张新盘」）",
+            "game.restart-same"));
     }
 
     /// <summary>把"当前这一局是什么"写成一行日志（自检用）。</summary>
@@ -1203,8 +2416,12 @@ public sealed partial class MainWindow : Window
         LevelProgress progress = _storage.LevelProgress;
 
         LevelSummaryText.Text =
-            $"已通关 {progress.ClearedCount} / {LevelTable.Count} 关 · " +
-            $"星数 {progress.TotalStars} / {LevelTable.Count * LevelRules.MaxStars}";
+            Strings.Get(
+                "levelPanel.summary",
+                progress.ClearedCount,
+                LevelTable.Count,
+                progress.TotalStars,
+                LevelTable.Count * LevelRules.MaxStars);
 
         UpdateLevelNavigation();
 
@@ -1226,7 +2443,12 @@ public sealed partial class MainWindow : Window
 
             LevelListPanel.Children.Add(new TextBlock
             {
-                Text = $"第 {chapter} 章 · {levels[0].ChapterName}（已通关 {cleared} / {levels.Count}）",
+                Text = Strings.Get(
+                            "ui.chapterHeader",
+                            chapter,
+                            Strings.TranslateLiteral(levels[0].ChapterName),
+                            cleared,
+                            levels.Count),
                 FontSize = 15,
             });
 
@@ -1260,7 +2482,7 @@ public sealed partial class MainWindow : Window
 
             LevelListPanel.Children.Add(new TextBlock
             {
-                Text = $"{LevelTable.SecretChapterName}（{secret.BoardText}）",
+                Text = $"{Strings.TranslateLiteral(LevelTable.SecretChapterName)}（{secret.BoardText}）",
                 FontSize = 15,
             });
 
@@ -1322,14 +2544,16 @@ public sealed partial class MainWindow : Window
         var content = new StackPanel { Spacing = 2 };
         content.Children.Add(new TextBlock
         {
-            Text = unlocked ? level.DisplayName : $"🔒 {level.DisplayId} {level.Name}",
+            Text = unlocked
+                            ? $"{level.DisplayId} {Strings.TranslateLiteral(level.Name)}"
+                            : $"🔒 {level.DisplayId} {Strings.TranslateLiteral(level.Name)}",
             FontSize = 14,
         });
 
         string detail = unlocked
-            ? $"{level.BoardText} · {LevelRules.StarsText(stars)}" +
-              (best is { } seconds ? $" · 最好 {seconds:F1}s" : string.Empty)
-            : "通关上一关后解锁";
+            ? Strings.Get("levelCard.meta", level.BoardText, LevelRules.StarsText(stars)) +
+              (best is { } seconds ? Strings.Get("levelCard.best", seconds.ToString("F1")) : string.Empty)
+            : Strings.Get("levelCard.locked");
         content.Children.Add(new TextBlock
         {
             Text = detail,
@@ -1732,17 +2956,60 @@ public sealed partial class MainWindow : Window
         // 走真实的状态变化链路（和玩家踩雷时一样：事件 → OnBoardStateChanged → HandleGameOver）
         OnBoardStateChanged(_board, EventArgs.Empty);
 
+        // 记下"踩雷那一局"的雷位，用来验证「重打这一盘」复现的是不是同一张盘
+        int[] minesBefore = [.. session.Board.GetMineIndexes().OrderBy(i => i)];
+        int seedBefore = session.Seed;
+
         AppPaths.Log(
             $"[UICHECK] 失败弹窗：可见={DefeatOverlay.Visibility}（期望 Visible）· " +
             $"摘要=『{DefeatSummary.Text.Replace("\n", " / ")}』· " +
-            $"重开按钮=『{DefeatRetryButton.Content}』");
+            $"重打按钮=『{DefeatRetryButton.Content}』");
 
-        // 点"重新开始这一盘"：应当收起弹窗并开一局新的
+        // 点「重打这一盘」：应当收起弹窗，并开出一张**雷位逐位相同**的盘（练习局）
         OnDefeatRetryClick(this, new RoutedEventArgs());
 
+        int[] minesAfter = ViewModel.Session is { } replayed
+            ? [.. replayed.Board.GetMineIndexes().OrderBy(i => i)]
+            : [];
+
         AppPaths.Log(
-            $"[UICHECK] 点『重新开始这一盘』之后：弹窗可见={DefeatOverlay.Visibility}（期望 Collapsed）· " +
+            $"[UICHECK] 点『重打这一盘』之后：弹窗可见={DefeatOverlay.Visibility}（期望 Collapsed）· " +
             $"新局状态={ViewModel.Session?.Status} · 已翻开={ViewModel.Session?.RevealedCount}（期望 0）");
+        AppPaths.Log(
+            $"[UICHECK] 同一张盘校验：雷位逐位一致={minesBefore.SequenceEqual(minesAfter)}（期望 True）· " +
+            $"雷数 {minesBefore.Length} → {minesAfter.Length} · 种子 {seedBefore} → {ViewModel.Session?.Seed} · " +
+            $"练习局={ViewModel.IsPracticeRun}（期望 True）");
+
+        // 练习局必须**不进最快记录**：在这张重打出来的盘上直接通关（走真实链路：Reveal → 事件 → HandleGameOver），
+        // 再确认记录表没有因为这一局而改变。否则"看过雷位后 3 秒通关"会污染最快记录表。
+        if (ViewModel.Session is { } practice)
+        {
+            string practiceDifficulty = practice.DifficultyId ?? "custom";
+            double? bestBefore = BestRecordSeconds(practiceDifficulty);
+
+            for (int i = 0; i < practice.Board.CellCount; i++)
+            {
+                if (!practice.Board.IsMine(i))
+                {
+                    practice.Reveal(i);
+                }
+            }
+
+            OnBoardStateChanged(_board, EventArgs.Empty);
+            double? bestAfter = BestRecordSeconds(practiceDifficulty);
+
+            AppPaths.Log(
+                $"[UICHECK] 练习局通关：状态={practice.Status}（期望 Won）· 难度={practiceDifficulty} · " +
+                $"最快记录未变化={bestAfter == bestBefore}（期望 True）· 记录={bestBefore?.ToString("F1") ?? "（无）"} → {bestAfter?.ToString("F1") ?? "（无）"}");
+        }
+
+        // 再点「换一张新盘」：应当换盘、且不再是练习局（否则"想刷记录"的玩家就没有路了）
+        OnDefeatNewBoardClick(this, new RoutedEventArgs());
+
+        int[] minesNew = ViewModel.Session is { } fresh ? [.. fresh.Board.GetMineIndexes().OrderBy(i => i)] : [];
+        AppPaths.Log(
+            $"[UICHECK] 点『换一张新盘』之后：练习局={ViewModel.IsPracticeRun}（期望 False）· " +
+            $"与重打的那张盘不同={!minesNew.SequenceEqual(minesAfter)}（期望 True）");
     }
 
     private bool _historyCheckDone;
@@ -2042,6 +3309,8 @@ public sealed partial class MainWindow : Window
         if (_aboutGameWindow is null)
         {
             _aboutGameWindow = new AboutGameWindow(_sound, _notifier);
+
+            ApplyThemeToWindow(_aboutGameWindow);
             _aboutGameWindow.Closed += (_, _) => _aboutGameWindow = null;
         }
 
@@ -2053,6 +3322,8 @@ public sealed partial class MainWindow : Window
         if (_aboutAuthorsWindow is null)
         {
             _aboutAuthorsWindow = new AboutAuthorsWindow(_sound, _notifier, UnlockSecretLevel);
+
+            ApplyThemeToWindow(_aboutAuthorsWindow);
             _aboutAuthorsWindow.Closed += (_, _) => _aboutAuthorsWindow = null;
         }
 
@@ -2456,8 +3727,6 @@ public sealed partial class MainWindow : Window
         ThemeCombo.SelectedIndex = ThemeCombo.SelectedIndex == 1 ? 0 : 1;
 
         // 2) 开关设置（以前会弹"已开启/关闭锁定盘面"）
-        LockedBoardToggle.IsOn = !LockedBoardToggle.IsOn;
-        HeatmapToggle.IsOn = !HeatmapToggle.IsOn;
 
         // 3) 新开一局（以前会弹"新局：初级"）
         StartPreset(DifficultyPreset.Beginner);
@@ -3141,5 +4410,144 @@ public sealed partial class MainWindow : Window
         }
 
         return string.Join(" | ", parts);
+    }
+    // ------------------------------------------------------------ 界面颜色模式（v1.3）
+
+    /// <summary>
+    /// 界面颜色模式：跟随系统 / 浅色 / 深色。
+    ///
+    /// <para>
+    /// 自检用：环境变量 <c>SAOLEI_UITHEME=light|dark|system</c> 可强制（截图核对用，不改存档）。
+    /// </para>
+    /// <para>
+    /// 切换后立刻把棋盘主题重算一遍：深色界面下如果棋盘也是深色，会走
+    /// <see cref="BoardContrast.EnsureVisible"/> 把棋盘底色推到"看得出边界"，
+    /// 所以棋盘<b>永远不会</b>和背景糊在一起（高对比主题同样走这条规则）。
+    /// </para>
+    /// </summary>
+    private void ApplyUiTheme()
+    {
+        string? forced = Environment.GetEnvironmentVariable("SAOLEI_UITHEME");
+        UiThemeMode mode = forced is { Length: > 0 }
+            ? UiThemeCatalog.Normalize(forced)
+            : UiThemeCatalog.Normalize(_storage.Settings.UiTheme);
+
+        RootGrid.RequestedTheme = mode switch
+        {
+            UiThemeMode.Light => ElementTheme.Light,
+            UiThemeMode.Dark => ElementTheme.Dark,
+            _ => ElementTheme.Default,
+        };
+
+        // 窗口本身不画背景：不显式给底色的话，深色下会变成"白底白字"（文字看不见）。
+        // 底色与 ApplyBoardTheme 里算对比度用的背景是同一组常量，保证一致。
+        // 显式选浅色/深色时关掉 Mica（它跟的是系统主题），否则窗口底色不会跟着变。
+        if (mode != UiThemeMode.System)
+        {
+            SystemBackdrop = null;
+        }
+
+        RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            RootGrid.ActualTheme == ElementTheme.Dark
+                ? Windows.UI.Color.FromArgb(255, 0x20, 0x20, 0x20)
+                : Windows.UI.Color.FromArgb(255, 0xF3, 0xF3, 0xF3));
+
+        if (UiThemeBox.Items.Count == 0)
+        {
+            foreach (UiThemeMode option in new[] { UiThemeMode.System, UiThemeMode.Light, UiThemeMode.Dark })
+            {
+                UiThemeBox.Items.Add(new ComboBoxItem
+                {
+                    Content = Strings.Get(UiThemeCatalog.KeyOf(option)),
+                    Tag = UiThemeCatalog.IdOf(option),
+                });
+            }
+        }
+
+        foreach (object candidate in UiThemeBox.Items)
+        {
+            if (candidate is ComboBoxItem { Tag: string id } && id == UiThemeCatalog.IdOf(mode))
+            {
+                UiThemeBox.SelectedItem = candidate;
+                break;
+            }
+        }
+
+        ApplyBoardTheme();
+
+        // 已经创建过的关于窗口也要跟着刷新（否则它们会停留在旧主题）。
+        if (_aboutGameWindow is not null)
+        {
+            ApplyThemeToWindow(_aboutGameWindow);
+        }
+
+        if (_aboutAuthorsWindow is not null)
+        {
+            ApplyThemeToWindow(_aboutAuthorsWindow);
+        }
+
+        AppPaths.Log($"[UITHEME] 界面颜色模式={UiThemeCatalog.IdOf(mode)}（实际主题={RootGrid.ActualTheme}）");
+    }
+
+    private void OnUiThemeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_settingsReady || UiThemeBox.SelectedItem is not ComboBoxItem { Tag: string id })
+        {
+            return;
+        }
+
+        _storage.Settings.UiTheme = id;
+        SaveSettings();
+        ApplyUiTheme();
+    }
+
+    /// <summary>
+    /// 套用棋盘主题。深色界面下棋盘若与背景过近，会被推到可分辨（保持玩家选的色相）。
+    /// </summary>
+    private void ApplyBoardTheme()
+    {
+        BoardPalette palette = _storage.Settings.ResolvePalette();
+
+        string background = RootGrid.ActualTheme == ElementTheme.Dark ? "#202020" : "#F3F3F3";
+        string adjusted = BoardContrast.EnsureVisible(palette.CoveredFill, background);
+        if (!string.Equals(adjusted, palette.CoveredFill, StringComparison.OrdinalIgnoreCase))
+        {
+            AppPaths.Log($"[UITHEME] 棋盘底色 {palette.CoveredFill} 在背景 {background} 下过近，自动调整为 {adjusted}");
+            palette.CoveredFill = adjusted;
+        }
+
+        _board.ApplyTheme(BoardTheme.FromPalette(palette));
+    }
+    /// <summary>
+    /// 把一个独立窗口（「关于游戏」「关于作者」）套上当前的界面颜色模式与底色。
+    ///
+    /// <para>
+    /// 它们是各自独立的 <c>Window</c>，不会继承主窗口的 <c>RequestedTheme</c>，
+    /// 所以必须单独套一遍，否则深色模式下这两个窗口还是浅色的。
+    /// </para>
+    /// </summary>
+    private void ApplyThemeToWindow(Window window)
+    {
+        if (window.Content is not FrameworkElement root)
+        {
+            return;
+        }
+
+        root.RequestedTheme = RootGrid.RequestedTheme;
+
+        // 两个关于窗口的根元素类型并不相同（Grid 是 Panel、ScrollViewer 是 Control、Border 是 Border），
+        // 三者都可能有 Background，逐个套上同一底色，别再假设成 Panel。
+        switch (root)
+        {
+            case Panel panel:
+                panel.Background = RootGrid.Background;
+                break;
+            case Control control:
+                control.Background = RootGrid.Background;
+                break;
+            case Border border:
+                border.Background = RootGrid.Background;
+                break;
+        }
     }
 }

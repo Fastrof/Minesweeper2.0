@@ -1,5 +1,6 @@
 using System.Security;
 using Microsoft.Windows.AppNotifications;
+using MineSweeper.Core.Localization;
 using MineSweeper.Core.Notifications;
 
 namespace MineSweeper.App.Services;
@@ -76,8 +77,24 @@ public sealed class ToastNotifier : INotificationSink, IDisposable
     public int ShownTotal { get; private set; }
 
     /// <inheritdoc />
+    /// <summary>
+    /// 把通知的标题与正文按当前语言翻译一次（v1.3）。
+    ///
+    /// 放在这个**唯一出口**上，而不是去改上百个调用点：Toast 的文案散落在 Core 与 App 各处，
+    /// 逐个改既容易漏、又会让每次加提示都多一道手续。翻译按"简体中文原文"反查语言表，
+    /// 查不到就原样发出（表现为那句还是中文，一眼能看出漏了哪条）。
+    /// </summary>
+    private static GameNotification Translate(GameNotification notification)
+        => notification with
+        {
+            Title = Strings.TranslateLiteral(notification.Title),
+            Message = Strings.TranslateLiteral(notification.Message),
+        };
+
     public void Publish(GameNotification notification)
     {
+        notification = Translate(notification);
+
         ArgumentNullException.ThrowIfNull(notification);
 
         // 安静通知：只写日志，不弹窗、也不占用限流额度。

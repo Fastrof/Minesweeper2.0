@@ -228,11 +228,12 @@
                 Visibility="Collapsed">
                 <ScrollViewer>
                     <StackPanel Spacing="6">
-                        <TextBlock FontWeight="SemiBold" Text="放大镜区域" />
+                        <TextBlock x:Name="ItemInfoHeading" FontWeight="SemiBold" Text="放大镜区域" />
                         <TextBlock
                             FontSize="11"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Text="列出瞄准/透视区域的坐标与内容，便于无障碍与截图分享（§5.6）。"
+                            x:Name="ItemInfoHint"
+Text="列出瞄准/透视区域的坐标与内容，便于无障碍与截图分享（§5.6）。"
                             TextWrapping="Wrap" />
                         <TextBlock
                             x:Name="MagnifierPreviewText"
@@ -284,6 +285,10 @@
                     Click="OnHistoryClick"
                     Content="历史记录" />
                 <Button
+                    x:Name="AchievementsButton"
+                    Click="OnAchievementsClick"
+                    Content="🏆 成就" />
+                <Button
                     x:Name="AboutGameButton"
                     Click="OnAboutGameClick"
                     Content="关于游戏" />
@@ -307,6 +312,31 @@
                 CornerRadius="6"
                 Visibility="Collapsed">
                 <StackPanel Spacing="10">
+
+      <!--
+      界面颜色主题（v1.3）：跟随系统 / 浅色 / 深色。
+      深色下走 BoardContrast 规则，保证棋盘与窗口背景分得开（高对比主题同样适用）。
+      -->
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock VerticalAlignment="Center" Text="界面颜色主题" />
+        <ComboBox
+          x:Name="UiThemeBox"
+          MinWidth="220"
+          SelectionChanged="OnUiThemeChanged" />
+      </StackPanel>
+
+                    <!--
+                        语言（v1.3）：首次安装默认简体中文。
+                        还没翻译的语言在下拉里标「即将推出」，选中时回退英文
+                        （守门测试保证不会出现"切过去一半还是中文"的半成品）。
+                    -->
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock VerticalAlignment="Center" Text="语言" />
+                        <ComboBox
+                            x:Name="LanguageBox"
+                            MinWidth="220"
+                            SelectionChanged="OnLanguageChanged" />
+                    </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock VerticalAlignment="Center" Text="宽度" />
@@ -414,19 +444,6 @@
                             Text="在离屏画布上实测 1000×1000 各缩放档位的绘制耗时，结果写入 %LOCALAPPDATA%\MineSweeper2\app.log（文档 M2 的验收标准）。" />
                     </StackPanel>
 
-                    <StackPanel Orientation="Horizontal" Spacing="16">
-                        <ToggleSwitch
-                            x:Name="LockedBoardToggle"
-                            Header="锁定盘面（同种子必定同盘，§2.6）"
-                            IsOn="False"
-                            Toggled="OnLockedBoardToggled" />
-                        <ToggleSwitch
-                            x:Name="HeatmapToggle"
-                            Header="远景雷密度热力图（辅助视图，会泄露信息，§1.5）"
-                            IsOn="False"
-                            Toggled="OnHeatmapToggled" />
-                    </StackPanel>
-
                     <TextBlock
                         FontSize="12"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -438,6 +455,61 @@
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                         Text="操作：左键翻开 · 右键插旗（三态：旗→问号→空）· 双击/中键/左右键同按 chord · 右键点击物品栏图标进入放大镜瞄准态（瞄准态里右键棋盘取消）· Ctrl+滚轮缩放 · Shift+滚轮横向滚动 · 滚轮纵向滚动 · 中键拖拽平移 · 双击棋盘空白处适应窗口"
                         TextWrapping="Wrap" />
+
+                    <!--
+                        检查更新（v1.1）。
+                        只在"未打包（GitHub 侧载）版"启用：商店版由 Microsoft Store 自己更新，
+                        既没必要查，更不该把商店用户引到 GitHub 去侧载。
+                    -->
+                    <TextBlock Margin="0,6,0,0" FontWeight="SemiBold" Text="检查更新" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock
+                            x:Name="UpdateVersionText"
+                            VerticalAlignment="Center"
+                            Text="当前版本" />
+                        <Button
+                            x:Name="CheckUpdateButton"
+                            Click="OnCheckUpdateClick"
+                            Content="检查更新" />
+                        <TextBlock VerticalAlignment="Center" Text="自动检查" />
+                        <ToggleSwitch
+                            x:Name="AutoCheckUpdateSwitch"
+                            MinWidth="0"
+                            Toggled="OnAutoCheckUpdateToggled" />
+                        <TextBlock VerticalAlignment="Center" Text="自动下载" />
+                        <ToggleSwitch
+                            x:Name="AutoDownloadUpdateSwitch"
+                            MinWidth="0"
+                            Toggled="OnAutoDownloadUpdateToggled" />
+                    </StackPanel>
+                    <TextBlock
+                        x:Name="UpdateStatusText"
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="还没有检查过更新。"
+                        TextWrapping="Wrap" />
+
+                    <!-- 检查频率 / 暂停更新 / 本版新增（v1.2） -->
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock VerticalAlignment="Center" Text="检查频率" />
+                        <ComboBox
+                            x:Name="UpdateFrequencyBox"
+                            MinWidth="132"
+                            SelectionChanged="OnUpdateFrequencyChanged" />
+                        <TextBlock VerticalAlignment="Center" Text="暂停更新" />
+                        <ToggleSwitch
+                            x:Name="PauseUpdateSwitch"
+                            MinWidth="0"
+                            Toggled="OnPauseUpdateToggled" />
+                        <CalendarDatePicker
+                            x:Name="PauseUntilPicker"
+                            MinWidth="186"
+                            DateChanged="OnPauseUntilChanged" />
+                        <Button
+                            x:Name="WhatsNewButton"
+                            Click="OnWhatsNewClick"
+                            Content="本版新增" />
+                    </StackPanel>
 
                     <TextBlock
                         FontSize="12"
@@ -520,6 +592,177 @@
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     <Button HorizontalAlignment="Center" Click="OnHistoryCloseClick" Content="关闭" />
                 </StackPanel>
+            </Border>
+        </Border>
+
+        <!--
+            成就面板（v1.1）：列表由 code-behind 动态生成 —— 每条要显示解锁状态、进度与隐藏成就的"???"，
+            用 XAML 模板反而更绕（同一理由见上面的关卡列表）。
+        -->
+        <Border
+            x:Name="AchievementsOverlay"
+            Grid.Row="0"
+            Grid.RowSpan="4"
+            Background="#99000000"
+            Canvas.ZIndex="42"
+            Visibility="Collapsed">
+            <Border
+                MaxWidth="640"
+                MaxHeight="640"
+                Margin="24"
+                Padding="20"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <Grid RowSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        Text="成就" />
+                    <TextBlock
+                        x:Name="AchievementSummaryText"
+                        Grid.Row="1"
+                        HorizontalAlignment="Center"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <ScrollViewer Grid.Row="2">
+                        <StackPanel x:Name="AchievementListPanel" Spacing="6" />
+                    </ScrollViewer>
+                    <Button
+                        Grid.Row="3"
+                        HorizontalAlignment="Center"
+                        Click="OnAchievementsCloseClick"
+                        Content="关闭" />
+                </Grid>
+            </Border>
+        </Border>
+
+        <!--
+            更新卡片（v1.1）：发现新版本时弹出来，承载"下载 / 安装 / 跳过 / 稍后"这几个动作。
+            做成窗口内覆盖层而不是独立窗口，理由同结算卡片：它服务的是"当下这一次更新"。
+        -->
+        <Border
+            x:Name="UpdateOverlay"
+            Grid.Row="0"
+            Grid.RowSpan="4"
+            Background="#99000000"
+            Canvas.ZIndex="44"
+            Visibility="Collapsed">
+            <Border
+                MaxWidth="560"
+                Margin="24"
+                Padding="20"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <StackPanel Spacing="10">
+                    <TextBlock
+                        x:Name="UpdateTitleText"
+                        HorizontalAlignment="Center"
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        Text="发现新版本" />
+                    <TextBlock x:Name="UpdateVersionLineText" TextWrapping="Wrap" />
+                    <TextBlock
+                        x:Name="UpdateNotesText"
+                        MaxHeight="150"
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        TextWrapping="Wrap" />
+                    <ProgressBar
+                        x:Name="UpdateProgressBar"
+                        Maximum="1"
+                        Minimum="0"
+                        Value="0"
+                        Visibility="Collapsed" />
+                    <TextBlock
+                        x:Name="UpdateProgressText"
+                        HorizontalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <StackPanel
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <Button
+                            x:Name="UpdateDownloadButton"
+                            Click="OnUpdateDownloadClick"
+                            Content="下载更新" />
+                        <Button
+                            x:Name="UpdateInstallButton"
+                            Click="OnUpdateInstallClick"
+                            Content="立即安装"
+                            Visibility="Collapsed" />
+                        <Button Click="OnUpdateOpenPageClick" Content="打开发布页" />
+                        <Button
+                            x:Name="UpdateSkipButton"
+                            Click="OnUpdateSkipClick"
+                            Content="跳过这个版本" />
+                        <Button Click="OnUpdateLaterClick" Content="稍后" />
+                    </StackPanel>
+                    <TextBlock
+                        x:Name="UpdateHintText"
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!--
+            本版新增（v1.2）：版本号变高之后自动弹一次；设置里的「本版新增」按钮可以随时回看。
+            内容内置在 Core 的 WhatsNewCatalog 里，离线可看，不依赖 GitHub。
+        -->
+        <Border
+            x:Name="WhatsNewOverlay"
+            Grid.Row="0"
+            Grid.RowSpan="4"
+            Background="#99000000"
+            Canvas.ZIndex="46"
+            Visibility="Collapsed">
+            <Border
+                MaxWidth="600"
+                Margin="24"
+                Padding="20"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <Grid RowSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock
+                        x:Name="WhatsNewTitleText"
+                        HorizontalAlignment="Center"
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        Text="本版新增" />
+                    <ScrollViewer Grid.Row="1" MaxHeight="380">
+                        <StackPanel x:Name="WhatsNewListPanel" Spacing="8" />
+                    </ScrollViewer>
+                    <Button
+                        Grid.Row="2"
+                        HorizontalAlignment="Center"
+                        Click="OnWhatsNewCloseClick"
+                        Content="知道了" />
+                </Grid>
             </Border>
         </Border>
 
@@ -691,7 +934,8 @@
             Canvas.ZIndex="35"
             Visibility="Collapsed">
             <Border
-                Width="360"
+                MaxWidth="440"
+                Margin="24"
                 Padding="20"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
@@ -719,7 +963,8 @@
                         <Button
                             x:Name="DefeatRetryButton"
                             Click="OnDefeatRetryClick"
-                            Content="重新开始这一盘" />
+                            Content="重打这一盘" />
+                        <Button Click="OnDefeatNewBoardClick" Content="换一张新盘" />
                         <Button Click="OnDefeatExitClick" Content="退出游戏" />
                     </StackPanel>
                 </StackPanel>

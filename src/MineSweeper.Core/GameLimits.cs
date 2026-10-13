@@ -36,13 +36,13 @@ public static class GameLimits
     {
         if (width < MinWidth || width > MaxWidth)
         {
-            error = $"宽度必须在 {MinWidth}~{MaxWidth} 之间，当前为 {width}。";
+            error = MineSweeper.Core.Localization.Strings.Get("limits.widthRange", MinWidth, MaxWidth, width);
             return false;
         }
 
         if (height < MinHeight || height > MaxHeight)
         {
-            error = $"高度必须在 {MinHeight}~{MaxHeight} 之间，当前为 {height}。";
+            error = MineSweeper.Core.Localization.Strings.Get("limits.heightRange", MinHeight, MaxHeight, height);
             return false;
         }
 
@@ -50,20 +50,20 @@ public static class GameLimits
 
         if (mineCount < 0)
         {
-            error = "雷数不能为负数。";
+            error = MineSweeper.Core.Localization.Strings.Get("limits.negativeMines");
             return false;
         }
 
         long maxMines = cellCount - SafeZoneCellCount;
         if (maxMines < 0)
         {
-            error = $"棋盘太小：{width}×{height} 只有 {cellCount} 格，无法为首点的 3×3 安全区（{SafeZoneCellCount} 格）让出位置。";
+            error = MineSweeper.Core.Localization.Strings.Get("limits.tooSmall", width, height, cellCount, SafeZoneCellCount);
             return false;
         }
 
         if (mineCount > maxMines)
         {
-            error = $"雷数超过 {maxMines}，无法保证首点安全，请降低雷数或扩大棋盘。";
+            error = MineSweeper.Core.Localization.Strings.Get("limits.tooManyMines", maxMines);
             return false;
         }
 

@@ -1,3 +1,5 @@
+using MineSweeper.Core.Localization;
+
 namespace MineSweeper.Core.Levels;
 
 /// <summary>
@@ -45,7 +47,7 @@ public sealed record LevelDefinition(
     public string DisplayName => $"{DisplayId} {Name}";
 
     /// <summary>盘面摘要，例如 <c>16×16 / 40 雷</c>。</summary>
-    public string BoardText => $"{Width}×{Height} / {MineCount} 雷";
+    public string BoardText => Strings.Get("levelCard.board", Width, Height, MineCount);
 
     /// <summary>星级门槛文案。</summary>
       /// <summary>星级门槛文案（道具全局共用，所以这里只讲时间目标）。</summary>

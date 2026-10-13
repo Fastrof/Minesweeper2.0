@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using MineSweeper.Core.Localization;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -42,8 +43,19 @@ public sealed partial class AboutAuthorsWindow : Window
         _onSecretLevelUnlocked = onSecretLevelUnlocked;
 
         InitializeComponent();
+        // 必须在 Loaded 之后扫：WinUI 的元素要等模板套用/测量后才进入可视化树，
+        // 刚 InitializeComponent 完时 VisualTreeHelper 看不到子元素（自检日志证实只看到 1 处）。
+        if (Content is FrameworkElement aboutRoot)
+        {
+            aboutRoot.Loaded += (_, _) =>
+            {
+                int localized = Services.XamlLocalizer.LocalizeOnce(aboutRoot);
+            Services.AppPaths.Log($"[LANG] {GetType().Name} 已翻译 {localized} 处文案");
+            };
+        }
 
-        AboutWindowChrome.Apply(this, "关于作者");
+
+        AboutWindowChrome.Apply(this, Strings.Get("about.title.authors"));
         LoadContent();
         LoadAvatar(PrimaryAvatarBrush, "Fastrof.png");
         LoadAvatar(SecondaryAvatarBrush, "Shinichi.png");
@@ -52,8 +64,7 @@ public sealed partial class AboutAuthorsWindow : Window
     private void LoadContent()
     {
         FooterText.Text =
-            $"{AboutInfo.ProductName} v{AboutInfo.Version} · 由 {AboutInfo.PrimaryAuthor} 与 " +
-            $"{AboutInfo.SecondaryAuthor} 制作。";
+            Strings.Get("about.credits", Strings.TranslateLiteral(AboutInfo.ProductName), AboutInfo.Version, AboutInfo.PrimaryAuthor, AboutInfo.SecondaryAuthor);
         NoteText.Text = AboutInfo.AuthorsNote;
     }
 

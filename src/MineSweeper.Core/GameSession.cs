@@ -484,12 +484,31 @@ public sealed class GameSession
         // 玩家点下第一格才开始。
         //
         // 但锁定盘面的雷位是开局就按 seed 定死的，不能像普通模式那样"围着首点布雷"，
-        // 所以这里把首次翻开钉到开局就算好的那格安全点（Board.FirstClickIndex）上：
-        // 玩家点哪里都行，结果都是从那格安全地展开，既不会踩雷，盘面也仍然与 seed 一一对应。
-        // 返回的 RevealResult.Index 会是**真正被翻开的那一格**，调用方据此就能看出这次被挪动了。
+        // 所以点到**雷**时要把这一下挪到开局就算好的那格安全点（Board.FirstClickIndex）上：
+        // 既不会踩雷，盘面也仍然与 seed 一一对应。返回的 RevealResult.Index 是**真正被翻开的那一格**，
+        // 调用方据此就能看出这次被挪动了。
+        //
+        // v1.1 修复（玩家报的 bug）：原来是无条件挪动，于是"点到安全格也照样在别处展开"——
+        // 玩家看到的就是"我点这里，却在那边开了一片"，而锁定盘面又很容易被打开。
+        // 现在只有**点到雷**（或点到棋盘外）才挪；点到安全格就照玩家点的位置开。
+        //
+        // 挪到哪一格也有讲究：挪到**离点击位置最近**的 0 格（而不是开局固定的那一格），
+        // 这样既保住"首点必定开出一片"（0 格必然连锁展开），也不会跳到八竿子打不着的地方。
+        // 点到棋盘外时没有"点击位置"可用，退回开局算好的那格。
+        //
+        // 安全性没变差（改动只影响"从哪一格开始展开"），确定性也没变差
+        // （雷位仍然只由 seed 决定、与玩家点哪一格无关）。
+        // 代价是"点到雷时开在别处"会让玩家推知自己点的是雷，
+        // 但锁定盘面的整张盘本来就由 seed 决定，这条信息无法避免。
         if (Locked && Status == GameStatus.NotStarted && Board.MinesPlaced && Board.IsValidIndex(Board.FirstClickIndex))
         {
-            index = Board.FirstClickIndex;
+            if (!Board.IsValidIndex(index) || Board.IsMine(index))
+            {
+                int nearest = BoardOpening.FindNearestZeroCell(
+                    Board, Board.IsValidIndex(index) ? index : Board.FirstClickIndex);
+
+                index = nearest >= 0 ? nearest : Board.FirstClickIndex;
+            }
         }
 
         if (!Board.MinesPlaced)

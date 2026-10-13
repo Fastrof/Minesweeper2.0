@@ -40,6 +40,9 @@ public sealed class BoardView : UserControl
 
     /// <summary>正在瞄准的物品栏槽位（0 放大镜 / 1 声呐扫描）。</summary>
     private int _aimSlot;
+
+    /// <summary>v1.3：当前正在瞄准的物品栏槽位（0 放大镜 / 1 声呐扫描）；-1 表示没在瞄准。</summary>
+    public int AimSlot => _aimSlot;
     private int _hoverIndex = -1;
     private int _mouseCell = -1;
 
@@ -98,6 +101,13 @@ public sealed class BoardView : UserControl
 
     /// <summary>棋盘状态发生变化（UI 需要刷新计数/计时/物品栏）。</summary>
     public event EventHandler? BoardStateChanged;
+
+    /// <summary>
+    /// 一次 chord 成功展开后触发，参数是**这次 chord 一共翻开了多少格**（v1.1）。
+    /// 成就里要判"一次 chord 展开 ≥100 格"，而 MainWindow 拿不到 <c>ChordResult.OpenedCount</c>，
+    /// 所以由棋盘把结果抛出来 —— 比让 UI 去猜"这一帧翻开数突然变多"可靠得多。
+    /// </summary>
+    public event EventHandler<int>? ChordResolved;
 
     /// <summary>瞄准态开关变化。</summary>
     public event EventHandler? AimingChanged;
@@ -584,8 +594,8 @@ public sealed class BoardView : UserControl
         int size = (scan.Radius * 2) + 1;
         Notify(
             NotificationLevel.Success,
-            $"声呐扫描：{scan.MineCount} 颗雷",
-            $"以第{board.YOf(scan.CenterIndex) + 1}行 第{board.XOf(scan.CenterIndex) + 1}列为中心的 {size}×{size} 区域里共有 {scan.MineCount} 颗雷（不显示位置）。剩余声呐 ×{scan.RemainingCount}",
+            MineSweeper.Core.Localization.Strings.Get("item.sonar.title", scan.MineCount),
+            MineSweeper.Core.Localization.Strings.Get("item.sonar.body", board.YOf(scan.CenterIndex) + 1, board.XOf(scan.CenterIndex) + 1, size, scan.MineCount, scan.RemainingCount),
             "sonar.result");
 
         // 蓝色瞄准框退出后就不在了，玩家很容易忘记"刚扫的是哪一块"。
@@ -613,8 +623,8 @@ public sealed class BoardView : UserControl
         PlaySound(SoundEffect.Chord);
         Notify(
             NotificationLevel.Success,
-            $"时间冻结 {freeze.FrozenSeconds:F0} 秒",
-            $"倒计时暂停 {freeze.FrozenSeconds:F0} 秒，暂停期间不计入用时。剩余冻结 ×{freeze.RemainingCount}",
+            MineSweeper.Core.Localization.Strings.Get("item.freeze.title", freeze.FrozenSeconds.ToString("F0")),
+            MineSweeper.Core.Localization.Strings.Get("item.freeze.body", freeze.FrozenSeconds.ToString("F0"), freeze.RemainingCount),
             "freeze.result");
 
         BoardStateChanged?.Invoke(this, EventArgs.Empty);
@@ -656,7 +666,7 @@ public sealed class BoardView : UserControl
         Notify(
             NotificationLevel.Success,
             "透视完成",
-            $"已透视 {reveal.AffectedCount} 格：雷 {reveal.MineCount} / 空 {reveal.EmptyCount}",
+            MineSweeper.Core.Localization.Strings.Get("item.magnifier.body", reveal.AffectedCount, reveal.MineCount, reveal.EmptyCount),
             "magnifier.used");
 
         // §4.5：只重绘受影响的矩形，不做全屏刷新
@@ -1183,7 +1193,7 @@ public sealed class BoardView : UserControl
 
         if (_session.Status == GameStatus.Won)
         {
-            Notify(NotificationLevel.Success, "胜利！", $"用时 {_session.ElapsedSecondsInt} 秒完成本局。", "game.won");
+            Notify(NotificationLevel.Success, MineSweeper.Core.Localization.Strings.Get("toast.win.title"), MineSweeper.Core.Localization.Strings.Get("toast.win.body", _session.ElapsedSecondsInt), "game.won");
         }
         else if (_session.Status == GameStatus.Lost)
         {
@@ -1261,6 +1271,7 @@ public sealed class BoardView : UserControl
 
         RepaintAfterAction();
         BoardStateChanged?.Invoke(this, EventArgs.Empty);
+        ChordResolved?.Invoke(this, chord.OpenedCount);
 
         if (chord.Outcome == ChordOutcome.Exploded)
         {

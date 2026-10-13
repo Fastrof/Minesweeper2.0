@@ -62,21 +62,23 @@ public sealed class AdvancedFeatureTests
         Assert.False(board.IsMine(safe));
         Assert.Equal(0, board.GetAdjacentMines(safe));
 
-        // 玩家点了左上的角——它不是安全点，正常玩法下这里很可能是雷
-        const int clicked = 0;
+        // 玩家第一下点了**一颗雷**：首点必须保证安全，所以这一下会被挪到开局算好的安全点。
+        // （v1.1 起这里刻意改用雷格：点到**安全格**会照玩家点的位置开，不再挪动 ——
+        //   那一条由 LockedFirstClickTests.点到安全格就在那一格展开 覆盖。）
+        int clicked = board.GetMineIndexes()[0];
         Assert.NotEqual(clicked, safe);
 
         RevealResult reveal = session.Reveal(clicked);
 
-        // ① 返回的是"真正被翻开的那一格"，所以调用方能看出这次首点被挪到了安全点
+        // ① 返回的是"真正被翻开的那一格"（离点击位置最近的 0 格），所以调用方能看出这次首点被挪动了
         Assert.Equal(RevealOutcome.Revealed, reveal.Outcome);
-        Assert.Equal(safe, reveal.Index);
-        Assert.Equal(safe, board.FirstClickIndex);
+        Assert.NotEqual(clicked, reveal.Index);
+        Assert.Equal(0, board.GetAdjacentMines(reveal.Index));
 
-        // ② 真正展开的是安全点，玩家点的那格并没有被翻开
-        Assert.True(board.IsRevealed(safe));
-        Assert.False(board.IsMine(safe));
-        Assert.False(board.IsRevealed(clicked), "首点被钉到安全点后，玩家点的那格不该同时被翻开。");
+        // ② 真正展开的是那格 0 格，玩家点到的那颗雷并没有被翻开
+        Assert.True(board.IsRevealed(reveal.Index));
+        Assert.False(board.IsMine(reveal.Index));
+        Assert.False(board.IsRevealed(clicked), "首点被挪到安全区后，玩家点的那颗雷不该被翻开。");
 
         // ③ 是"首点展开了一片"的正常开局，而不是踩雷
         Assert.Equal(GameStatus.InProgress, session.Status);
