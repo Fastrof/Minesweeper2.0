@@ -8,7 +8,6 @@
 
 一个从零手写的 Windows 扫雷：**先把经典玩法 100% 还原，再往上加新的东西**。
 
-> 严格按《扫雷 2.0-开发方向文档 v1.2》实现。
 > 技术栈 **C# + .NET 10 + WinUI 3（Windows App SDK）+ Win2D**，不需要 Visual Studio，`dotnet build` 即可编译。
 
 | | |

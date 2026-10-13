@@ -8,7 +8,6 @@
 
 A Windows Minesweeper written from scratch: **reproduce the classic game 100% first, then build something new on top of it.**
 
-> Implemented strictly against the *Minesweeper 2.0 — Development Direction Document v1.2*.
 > Tech stack: **C# + .NET 10 + WinUI 3 (Windows App SDK) + Win2D**. No Visual Studio needed — `dotnet build` is enough.
 
 | | |
