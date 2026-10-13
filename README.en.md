@@ -12,9 +12,9 @@ A Windows Minesweeper written from scratch: **reproduce the classic game 100% fi
 
 | | |
 |---|---|
-| **Version** | `v1.1.0` |
+| **Version** | `v1.3` |
 | **Build** | `build.cmd` → **0 warnings, 0 errors** |
-| **Tests** | `test.cmd` → **265 / 265 passing** (~1 second) |
+| **Tests** | `test.cmd` → **329 / 329 passing** (~1 second) |
 | **Repository** | https://github.com/Fastrof/Minesweeper2.0 |
 | **License** | For learning and discussion only |
 
@@ -49,7 +49,7 @@ cd Minesweeper2.0
 
 build.cmd     :: build the whole solution (x64), 0 warnings 0 errors
 run.cmd       :: launch the game
-test.cmd      :: run the Core unit tests (162 of them)
+test.cmd      :: run the Core unit tests (329 of them)
 ```
 
 The scripts probe `%ProgramFiles%\dotnet`, `%ProgramFiles(x86)%\dotnet`, `%DOTNET_ROOT%` and `D:\dotnet` in order, and fall back to whatever `dotnet` is on `PATH`. The equivalent manual commands:

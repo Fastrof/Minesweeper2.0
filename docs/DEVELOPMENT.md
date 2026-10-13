@@ -152,7 +152,7 @@ MineSweeper2.sln
 │       ├── Services/ToastNotifier.cs# 通知出口：Windows Toast + 级别映射 + 限流
 │       ├── Services/SoundPlayer.cs  # 音效出口：首次合成 wav 到 %LOCALAPPDATA%\MineSweeper2\sounds\ 并播放
 │       └── app.manifest             # DPI 感知
-└── tests/MineSweeper.Core.Tests/    # xUnit；§8 的 10 条用例 + 回归 + 主题/音效 + 关卡 + 通知 = 162 个测试
+└── tests/MineSweeper.Core.Tests/    # xUnit；§8 的 10 条用例 + 回归 + 主题/音效 + 关卡 + 通知 = 329 个测试
 ```
 
 > 运行时会额外生成（**不属于源码**，也不需要提交）：`%LOCALAPPDATA%\MineSweeper2\`
@@ -1364,3 +1364,17 @@ git push -u origin main
 
 ---
 
+## 13. v1.2 / v1.3 变更要点（补充）
+
+**v1.2（更新设置与修复）**
+- 自动检查频率：`UpdateFrequency`（每次启动 / 每天 / 每 3 天 / 每周 / 每 2 周 / 每月）＋ `UpdateSchedule.ShouldAutoCheck`。
+- 暂停更新：`UpdatePause`（暂停到指定日期；暂停期间不发任何请求）；暂停期手动点「检查更新」= 立即恢复自动检查。
+- 「本版新增」：`WhatsNewCatalog`（1.0 / 1.1 / 1.2 / 1.3 各一条；升版本必须同时加条目，`UpdatePreferencesTests` 有守门测试）。
+- 修复：锁定盘面下"点哪一格就开在哪一格"（`BoardOpening.FindNearestZeroCell`）；失败弹窗拆成「重打这一盘」（练习局，不计最快记录）与「换一张新盘」。
+
+**v1.3（中英双语 + 界面颜色主题）**
+- 语言表在 **Core**：`Localization/LanguageCatalog.cs`（当前只有 `zh-Hans` 与 `en` 两种）＋ `Localization/Strings.cs`（`SetLanguage` / `Get` / `ResolveFor` / `TranslateLiteral` 反查）＋ `Localization/StringTables.cs`（约 330 键/语言）。
+- 翻译的三种接入方式：① 代码里直接 `Strings.Get("key", …)`（整句模板，禁止拼句）；② `Strings.TranslateLiteral(原文)` —— 用于 Core 里已经存在的整句常量与数据（关卡名、主题名、道具名、版本说明、更新原因等）；③ `Services/XamlLocalizer.cs` —— 扫描可视化树，翻译 XAML 静态文案与 **ToolTip**（主窗口在启动/切语言时扫，两个「关于」窗口在内容 `Loaded` 后扫）。
+- Toast 出口统一翻译（`ToastNotifier`），所以 Core 抛出的整句文案只要入了表就自动英文化。
+- 界面颜色主题：`Themes/UiThemeMode.cs`（`System/Light/Dark` ＋ 容错解析）＋ **`BoardContrast`**：按 WCAG 相对亮度把棋盘底色推到与背景的亮度差 ≥ 0.12（保持色相、幂等），保证深色 UI 下棋盘不会"糊"进背景（`UiThemeTests` 有"任何棋盘主题 × 任何界面模式都必须分得开"的守门测试）。
+- 两个「关于」窗口是独立 `Window`，不继承主窗口主题：创建后调用 `ApplyThemeToWindow`（覆盖 `Panel`/`Control`/`Border` 三种根元素），切换主题时也会刷新已创建的窗口。
