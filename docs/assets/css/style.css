@@ -387,3 +387,55 @@ td:first-child { color: var(--text); font-weight: 600; }
   .lang { align-self: flex-start; margin-top: 6px; }
   .site-header .container { position: relative; }
 }
+
+/* 上架后的商店徽章（下载区） */
+.dl-store-badge {
+  margin: 0 0 20px;
+}
+
+.dl-store-badge img {
+  display: block;
+}
+
+/* 商店徽章按钮：文字按钮的统一替代品（点击直达商店） */
+.store-badge {
+  display: inline-block;
+  line-height: 0;
+  border-radius: 6px;
+}
+
+.store-badge img {
+  display: block;
+  height: 44px;
+  width: auto;
+}
+
+.store-badge:hover img,
+.store-badge:focus-visible img {
+  filter: brightness(1.08);
+}
+
+/* 下载卡片：两种安装方式的操作入口对齐（商店徽章与 GitHub 按钮同尺寸、同位置） */
+.dl-card {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 卡片里最后一个元素贴底：两栏高度一致时，徽章与按钮自然对齐 */
+.dl-card > :last-child {
+  margin-top: auto;
+}
+
+.dl-card .dl-badge-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 161px;
+  height: 44px;
+  padding: 0;
+  box-sizing: border-box;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1;
+  align-self: flex-start;
+}

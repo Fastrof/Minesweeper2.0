@@ -372,22 +372,23 @@
         <p class="lead">Two ways to install, identical content. The package is <strong>self-contained</strong> — no .NET or Windows App SDK prerequisite.</p>
       </div>
 
-      <div class="dl-grid">
+<div class="dl-grid">
         <article class="dl-card reveal">
           <h3>🏬 Microsoft Store</h3>
           <p>Easiest: Store-signed, no certificate to trust, updates handled for you.</p>
-          <!-- After the Store listing goes live, replace the href below with the Store link
-               (e.g. https://apps.microsoft.com/detail/xxxx) and drop the btn--soon class
-               and aria-disabled attribute. -->
-          <a class="btn btn--ghost btn--soon" href="#download" aria-disabled="true">Coming soon</a>
-          <p class="dl-note">Submission is in review; this button will be updated once it is live.</p>
+          <!-- 商店已上架：徽章与 GitHub 按钮同尺寸(161x44)，在下载卡片底部对齐。 -->
+          <a class="store-badge" href="https://apps.microsoft.com/detail/9NKR2M2ZDDL3" target="_blank" rel="noopener"
+           aria-label="Download from the Microsoft Store">
+          <img src="assets/svg/ms-store-badge.svg" alt="Download from the Microsoft Store"
+               width="161" height="44">
+        </a>
         </article>
 
         <article class="dl-card reveal">
           <h3>⬇️ GitHub Release</h3>
           <p>Available now. Download the <code>.msix</code> plus the bundled <code>.cer</code> certificate, trust the certificate, then double-click to install.</p>
-          <a class="btn btn--primary" href="https://github.com/Fastrof/Minesweeper2.0/releases" target="_blank" rel="noopener">Go to Releases</a>
           <p class="dl-note">You can also build it yourself from source with <code>build.cmd</code>.</p>
+          <a class="btn btn--primary dl-badge-btn" href="https://github.com/Fastrof/Minesweeper2.0/releases" target="_blank" rel="noopener">Go to Releases</a>
         </article>
       </div>
 
