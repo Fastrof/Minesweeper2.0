@@ -16,6 +16,7 @@ A Windows Minesweeper written from scratch: **reproduce the classic game 100% fi
 | **Build** | `build.cmd` → **0 warnings, 0 errors** |
 | **Tests** | `test.cmd` → **329 / 329 passing** (~1 second) |
 | **Repository** | https://github.com/Fastrof/Minesweeper2.0 |
+| **Store** | [Microsoft Store](https://apps.microsoft.com/detail/9NKR2M2ZDDL3) |
 | **License** | For learning and discussion only |
 
 ---

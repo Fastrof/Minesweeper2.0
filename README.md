@@ -16,6 +16,7 @@
 | **构建** | `build.cmd` → **0 警告 0 错误** |
 | **测试** | `test.cmd` → **329 / 329 通过**（约 1 秒） |
 | **仓库** | https://github.com/Fastrof/Minesweeper2.0 |
+| **商店** | [Microsoft Store](https://apps.microsoft.com/detail/9NKR2M2ZDDL3) |
 | **许可** | 仅供学习与交流使用 |
 
 ---
