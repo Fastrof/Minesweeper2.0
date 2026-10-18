@@ -131,7 +131,8 @@
 
   function layout() {
     var wrap = boardEl.parentElement;
-    var avail = (wrap ? wrap.clientWidth : 640) - 10;
+    // 减去容器内边距（新样式 .board-wrap 左右各 10px）+ 一点余量，避免出现横向滚动条
+    var avail = (wrap ? wrap.clientWidth : 640) - 26;
     var gap = S.w > 20 ? 2 : 3;
     var cell = Math.floor((avail - (S.w - 1) * gap) / S.w);
     cell = Math.max(16, Math.min(34, cell));
