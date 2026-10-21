@@ -35,7 +35,7 @@ public sealed class LocalizationTests
     public void 目前没有从右到左的语言()
     {
         // 字段留着给以后（阿拉伯语等）；当前只提供简体中文与 English，所以没有 RTL
-        Assert.Empty(LanguageCatalog.All.Where(l => l.IsRightToLeft));
+        Assert.DoesNotContain(LanguageCatalog.All, l => l.IsRightToLeft);
     }
 
     [Fact]

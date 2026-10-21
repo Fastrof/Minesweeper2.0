@@ -294,12 +294,12 @@ public sealed class AdvancedFeatureTests
         GameSession session = TestFactory.Custom(9, 9, 10, inventory);
         session.Reveal(40);
 
-        // 中央 3×3：9×9 上索引 40 就是 (4,4)，也就是第 5 行第 5 列
+        // v1.4：放大镜是 2×2、点在左上角。9×9 上索引 40 是 (4,4) = 第 5 行第 5 列
         string center = session.PreviewMagnifier(40).ToPanelText(session.Board);
         Assert.Contains("第5行 第5列", center);
-        Assert.Contains("覆盖 9 格", center);
+        Assert.Contains("覆盖 4 格", center);
 
-        // 左上角只覆盖 4 格
+        // 左上角同样覆盖 4 格（2×2 正好铺满）
         string corner = session.PreviewMagnifier(0).ToPanelText(session.Board);
         Assert.Contains("覆盖 4 格", corner);
 

@@ -120,6 +120,13 @@ public class HistoryTests
         Assert.NotNull(result.BackupPath);
         Assert.True(File.Exists(result.BackupPath!));
         Assert.False(result.History.HasAnyRecord);
+
+        // 损坏分支必须重建一份默认文件（与其它存档一致）：否则原文件一直坏着，
+        // 每次启动都会再备份一份 corrupt 文件，玩家也永远回不到正常状态。
+        Assert.True(File.Exists(path), "损坏分支应当重建一份默认 history.json。");
+        HistoryLoadResult reloaded = new HistoryStore(path).Load();
+        Assert.Equal(HistoryLoadStatus.Loaded, reloaded.Status);
+        Assert.False(reloaded.History.HasAnyRecord);
     }
 
     [Fact]

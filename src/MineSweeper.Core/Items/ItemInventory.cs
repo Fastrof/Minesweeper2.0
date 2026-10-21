@@ -8,14 +8,15 @@ public readonly record struct ItemGrantResult(bool Granted, bool InventoryFull, 
 }
 
 /// <summary>
-/// 物品栏（§1.3 / §5.2）：三种道具的持有量、奖励发放、上限控制。
+/// 物品栏（§1.3 / §5.2）：三种道具的持有量、商店购买、上限控制。
 /// 刻意只依赖 <see cref="PlayerProgress"/> 与 <see cref="ItemConfig"/>，
 /// 因此发放规则可以在 Core 单测里直接验证（§8 第 7、8 条）。
 ///
-/// <b>v0.6 起发放规则改了</b>：每累计 <see cref="RewardThreshold"/> 次"正确标记"
-/// （= 扫到一颗雷）不再自动发一个放大镜，而是**攒下一次"三选一"奖励**
-/// （<see cref="PendingRewards"/>）；由 UI 弹出"从三个道具里挑一个"，
-/// 玩家选完才真正进物品栏（<see cref="ClaimReward"/>）。
+/// <b>v1.4 起发放规则</b>：不再有"每 20 颗雷三选一"的自动补给，
+/// 道具改为用金币在商店里买（<see cref="GameSession.TryBuyItem"/>）。
+/// 正确插旗仍会累计 <see cref="PlayerProgress.CorrectMineFlagsTotal"/>（历史/成就用），
+/// 但不会直接发道具；<see cref="RewardThreshold"/> 与 <see cref="CorrectFlagsTowardNext"/>
+/// 只为兼容旧调用保持可读，UI 已不再展示。
 /// </summary>
 public sealed class ItemInventory
 {
@@ -35,7 +36,7 @@ public sealed class ItemInventory
     /// <summary>道具配置。</summary>
     public ItemConfig Config { get; }
 
-    /// <summary>奖励阈值：每扫到这么多颗雷给一次"三选一"。</summary>
+    /// <summary>历史奖励阈值（v1.4 起不再发放，仅保留给统计展示/旧测试）。</summary>
     public int RewardThreshold => Config.MagnifierThreshold;
 
     /// <summary>奖励阈值（旧名，保留兼容）。</summary>
@@ -44,28 +45,51 @@ public sealed class ItemInventory
     /// <summary>单种道具的持有上限（§5.2 的三格）。</summary>
     public int MaxHold => Config.MagnifierMaxHold;
 
-    /// <summary>当前持有的放大镜数量。</summary>
-    public int MagnifierCount => Progress.MagnifierCount;
+    /// <summary>
+    /// 本局通过**商店**买到的数量（v1.4）。
+    ///
+    /// 语义是"账号库存之外、只在本局有效的额外持有量"：
+    /// <list type="bullet">
+    /// <item>显示/可用数量 = 账号库存 + 本局购买；</item>
+    /// <item>消耗时**优先扣本局买的**（用掉就没了，不会"退回"账号库存）；</item>
+    /// <item>每局 / 每关开始时清零（<see cref="ResetSession"/>），因为需求要求
+    ///       "金币每局清零、买到的道具也跟着这一局走"。</item>
+    /// </list>
+    /// 这样既能满足"商店是每局经济"，又不会把玩家原来攒下的道具弄丢。
+    /// </summary>
+    public PlayerProgress SessionPurchases { get; private set; } = PlayerProgress.CreateDefault();
 
-    /// <summary>当前持有的声呐扫描数量。</summary>
-    public int SonarCount => Progress.SonarCount;
+    /// <summary>新局 / 新关卡开始：清空本局购买（金币在 <see cref="GameSession.Coins"/> 上另行清零）。</summary>
+    public void ResetSession() => SessionPurchases = PlayerProgress.CreateDefault();
 
-    /// <summary>当前持有的时间冻结数量。</summary>
-    public int FreezeCount => Progress.FreezeCount;
+    /// <summary>本局通过商店买到的某个道具数量。</summary>
+    public int PurchasedCountOf(string itemId) => itemId switch
+    {
+        ItemIds.Magnifier => SessionPurchases.MagnifierCount,
+        ItemIds.Sonar => SessionPurchases.SonarCount,
+        ItemIds.Freeze => SessionPurchases.FreezeCount,
+        _ => 0,
+    };
 
-    /// <summary>还没领的"三选一"奖励次数（UI 据此弹窗）。</summary>
-    public int PendingRewards => Progress.PendingRewards;
+    /// <summary>当前持有的放大镜数量（账号库存 + 本局购买）。</summary>
+    public int MagnifierCount => Progress.MagnifierCount + SessionPurchases.MagnifierCount;
 
-    /// <summary>距离下一次奖励还差几次正确标记（§5.2 的进度条 13/20）。</summary>
+    /// <summary>当前持有的声呐扫描数量（账号库存 + 本局购买）。</summary>
+    public int SonarCount => Progress.SonarCount + SessionPurchases.SonarCount;
+
+    /// <summary>当前持有的时间冻结数量（账号库存 + 本局购买）。</summary>
+    public int FreezeCount => Progress.FreezeCount + SessionPurchases.FreezeCount;
+
+    /// <summary>距离下一次奖励还差几次正确标记（v1.4 起奖励机制已移除，仅保留给统计展示）。</summary>
     public int CorrectFlagsTowardNext
-        => Progress.CorrectMineFlagsTotal % RewardThreshold;
+        => Progress.CorrectMineFlagsTotal % Math.Max(1, RewardThreshold);
 
     /// <summary>某种道具的持有量。</summary>
     public int CountOf(string itemId) => itemId switch
     {
-        ItemIds.Magnifier => Progress.MagnifierCount,
-        ItemIds.Sonar => Progress.SonarCount,
-        ItemIds.Freeze => Progress.FreezeCount,
+        ItemIds.Magnifier => MagnifierCount,
+        ItemIds.Sonar => SonarCount,
+        ItemIds.Freeze => FreezeCount,
         _ => 0,
     };
 
@@ -120,52 +144,38 @@ public sealed class ItemInventory
     }
 
     /// <summary>
-    /// 记录一次"正确标记"（§5.2 的计数事件）：只累计计数；
-    /// 跨阈值时攒下一次待领奖励，交给 UI 弹"三选一"。
-    /// <paramref name="allowGrant"/> 为 false 时连奖励也不给（纯经典模式，§5.5 ⑤）。
+    /// 记录一次"正确标记"（= 扫到一颗雷）。
+    ///
+    /// <b>v1.4 起只做统计累计，不再发放任何道具</b> —— 道具改由金币商店购买
+    /// （见 <see cref="GameSession.TryBuyItem"/>）。保留这个方法是为了让历史统计与成就继续工作。
     /// </summary>
-    /// <param name="choiceRewards">
-    /// true（关卡模式）= 攒一次"三选一"奖励，玩家自己挑；
-    /// false（普通模式）= 老行为，跨阈值直接发一个放大镜。
-    /// </param>
-    /// <returns>这一次是否刚好产生了一次奖励（攒下待领 / 直接发放）。</returns>
-    public bool RecordCorrectFlag(bool allowGrant, bool choiceRewards)
-    {
-        Progress.CorrectMineFlagsTotal++;
-
-        if (!allowGrant || Progress.CorrectMineFlagsTotal % RewardThreshold != 0)
-        {
-            return false;
-        }
-
-        if (choiceRewards)
-        {
-            Progress.PendingRewards++;
-            return true;
-        }
-
-        // 普通模式：满仓就不再发（与 v0.5 行为一致）
-        return TryGrantMagnifier().Granted;
-    }
+    public void RecordCorrectFlag() => Progress.CorrectMineFlagsTotal++;
 
     /// <summary>
-    /// 领取一次"三选一"奖励：把选中的道具放进物品栏，并扣掉一次待领奖励。
-    /// 选中的道具已满时不扣奖励（UI 会把满的那格禁用，这里只是兜底）。
+    /// 商店购买成功后把道具记进"本局购买"（v1.4）。
+    /// 只写 <see cref="SessionPurchases"/>，**不动账号库存** —— 所以它必然随局结束/新关卡清零。
     /// </summary>
-    public ItemGrantResult ClaimReward(string itemId)
+    public ItemGrantResult ClaimPurchase(string itemId)
     {
-        if (!ItemIds.All.Contains(itemId) || Progress.PendingRewards <= 0)
+        if (!ItemIds.All.Contains(itemId))
         {
-            return new ItemGrantResult(false, false, CountOf(itemId));
+            return new ItemGrantResult(false, false, 0);
         }
 
-        if (IsFull(itemId))
+        switch (itemId)
         {
-            return new ItemGrantResult(false, true, CountOf(itemId));
+            case ItemIds.Magnifier:
+                SessionPurchases.MagnifierCount++;
+                break;
+            case ItemIds.Sonar:
+                SessionPurchases.SonarCount++;
+                break;
+            case ItemIds.Freeze:
+                SessionPurchases.FreezeCount++;
+                break;
+            default:
+                return new ItemGrantResult(false, false, 0);
         }
-
-        Progress.PendingRewards--;
-        AddOne(itemId);
 
         return new ItemGrantResult(true, IsFull(itemId), CountOf(itemId));
     }
@@ -175,28 +185,46 @@ public sealed class ItemInventory
     {
         if (IsFull(ItemIds.Magnifier))
         {
-            return new ItemGrantResult(false, true, Progress.MagnifierCount);
+            return new ItemGrantResult(false, true, MagnifierCount);
         }
 
         AddOne(ItemIds.Magnifier);
 
-        return new ItemGrantResult(true, IsFull(ItemIds.Magnifier), Progress.MagnifierCount);
+        return new ItemGrantResult(true, IsFull(ItemIds.Magnifier), MagnifierCount);
     }
 
-    /// <summary>消耗一个指定道具。数量为 0 时返回 false。</summary>
+    /// <summary>
+    /// 消耗一个指定道具。数量为 0 时返回 false。
+    ///
+    /// <b>v1.4 起优先扣本局商店买的那份</b>：买来的用掉就走，不会"退回"成账号库存；
+    /// 本局没买过（或已经用完）才去扣账号库存。玩家看到的总数 = 两者之和，所以
+    /// "优先扣哪一份"对玩家不可见，只影响"这一局结束后还剩多少"。
+    /// </summary>
     public bool TryConsume(string itemId)
     {
         switch (itemId)
         {
+            case ItemIds.Magnifier when SessionPurchases.MagnifierCount > 0:
+                SessionPurchases.MagnifierCount--;
+                return true;
             case ItemIds.Magnifier when Progress.MagnifierCount > 0:
                 Progress.MagnifierCount--;
+                return true;
+
+            case ItemIds.Sonar when SessionPurchases.SonarCount > 0:
+                SessionPurchases.SonarCount--;
                 return true;
             case ItemIds.Sonar when Progress.SonarCount > 0:
                 Progress.SonarCount--;
                 return true;
+
+            case ItemIds.Freeze when SessionPurchases.FreezeCount > 0:
+                SessionPurchases.FreezeCount--;
+                return true;
             case ItemIds.Freeze when Progress.FreezeCount > 0:
                 Progress.FreezeCount--;
                 return true;
+
             default:
                 return false;
         }

@@ -61,9 +61,22 @@ public sealed class UpdateStateStore
     /// <summary>updatestate.json 的完整路径。</summary>
     public string Path { get; }
 
+    /// <summary>
+    /// 本次 Load 是否因"版本过新"拒读过这个文件（此时 <see cref="Save"/> 被禁用）。
+    ///
+    /// 只拒读不禁写是不够的：App 用默认状态继续跑，退出时 Save 会把更新版本写的文件覆盖掉。
+    /// </summary>
+    public bool SaveBlocked => _versionTooNew;
+
+    // Load 在 RejectedVersionTooNew 分支置位；下一个 Load 重新判定
+    private bool _versionTooNew;
+
     /// <summary>加载更新状态；任何异常情况都降级为默认状态 + 返回可展示的提示。</summary>
     public UpdateStateLoadResult Load()
     {
+        // 重新加载以本次读到的结果为准（文件可能已经被换回旧版本）
+        _versionTooNew = false;
+
         if (!File.Exists(Path))
         {
             UpdateState created = UpdateState.CreateDefault();
@@ -105,6 +118,9 @@ public sealed class UpdateStateStore
             string backup = MakeBackupPath("unsupported");
             TryCopy(Path, backup);
 
+            // 拒读之后还要禁写：否则关窗时的 Save 会把新版文件覆盖掉
+            _versionTooNew = true;
+
             // 刻意不覆盖原文件：这是更新版本写的状态，降级运行不该把它毁掉
             return new UpdateStateLoadResult(
                 UpdateState.CreateDefault(),
@@ -120,6 +136,13 @@ public sealed class UpdateStateStore
     public void Save(UpdateState state)
     {
         ArgumentNullException.ThrowIfNull(state);
+
+        // 版本过新被拒读时禁止写盘：内存里的默认状态只是本次运行的临时态，
+        // 写回磁盘会把更新版本的文件直接抹掉（见 SaveBlocked）
+        if (_versionTooNew)
+        {
+            return;
+        }
 
         AtomicFile.WriteAllText(Path, JsonSerializer.Serialize(state, SerializerOptions));
     }

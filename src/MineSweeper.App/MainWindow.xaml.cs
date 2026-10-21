@@ -207,7 +207,7 @@ public sealed partial class MainWindow : Window
         // 构造全部完成：从这里开始，设置控件的变更才是"玩家真的改了设置"
         _settingsReady = true;
 
-        // 窗口变宽变窄要重排关卡列表（列数跟着可用宽度走，见 LevelListColumns）。
+        // 窗口变宽变窄要重排关卡列表（列数跟着可用宽度走，见 ComputeLevelListColumns / LevelListColumns）。
         // 注意两点，否则会自己绕成死循环：
         //   ① 只在"跨过列数阈值"时才重建（记住上一次用的列数），不是每次尺寸变化都重建；
         //   ② 重建会改变子元素 → 又触发 SizeChanged，所以排到下一轮 DispatcherQueue 再执行。
@@ -218,7 +218,10 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            if (LevelPanel.Visibility == Visibility.Visible && LevelListColumns() != _levelListColumns)
+            // 注意：这里必须用不读缓存的 ComputeLevelListColumns() 与"上次实际用的列数"比较。
+            // 以前两边都走带缓存的 LevelListColumns()，尺寸变化时永远相等 → 重排永远不会触发，
+            // 列数自适应就是这样悄悄失效的（v1.4 遗留）。
+            if (LevelPanel.Visibility == Visibility.Visible && ComputeLevelListColumns() != _levelListColumns)
             {
                 _levelListRefreshQueued = true;
                 DispatcherQueue.TryEnqueue(() =>
@@ -484,7 +487,10 @@ public sealed partial class MainWindow : Window
         HideSettlementOverlay();
         HideDefeatOverlay();
         SonarOverlay.Visibility = Visibility.Collapsed;
-        RefreshItemChoiceOverlay();
+        HideShop();
+
+        // 新会话自带新的 CoinWallet（金币归零）；这里把"本局购买"也清掉并刷新右上角显示。
+        ResetShopSession();
         UpdateMagnifierSlot();   // 新局开始：三格道具的亮度按"有没有货 + 这局还能不能用"重算
         RefreshLevelList();
 
@@ -666,8 +672,9 @@ public sealed partial class MainWindow : Window
         }
         ViewModel.Refresh();
         UpdateMagnifierSlot();
-        // 攒够一颗雷就可能多一次奖励：这里必须刷新，否则"自动弹出三选一"就成了空话
-        RefreshItemChoiceOverlay();
+
+        // 扫出一颗雷 = +1 金币：立刻刷新右上角的金币显示（商店开着时按钮可用性也同步刷新）
+        UpdateCoinDisplay();
 
         // 道具数量一变就立刻落盘（三种都盯；关卡里用掉的也算，因为 v0.6 起两者共用同一份存档）
         int bagTotal = ViewModel.Inventory.MagnifierCount + ViewModel.Inventory.SonarCount + ViewModel.Inventory.FreezeCount;
@@ -772,9 +779,9 @@ public sealed partial class MainWindow : Window
     /// 每帧读一次"本局用过哪些道具"。
     ///
     /// 刻意不去逐个拦截道具按钮/事件：那样每加一个道具就多一处接线，容易漏。
-    /// 这两个只读属性覆盖了全部使用路径 —— <c>ItemUsed</c> 只由放大镜置位（Core 里唯一的赋值点），
-    /// <c>IsTimerFrozen</c> 只在冻结真的生效时为真。
-    /// 声呐没有对应的会话属性，所以它由 <c>BoardView.SonarUsed</c> 事件单独置位。
+    /// v1.4 起 Core 为三种道具各给了一个只读属性（<c>UsedMagnifier</c> / <c>UsedSonar</c> /
+    /// <c>UsedFreeze</c>），而 <c>ItemUsed</c> 只表示"用过任意一种"，不能再拿它推断具体是哪一种。
+    /// 声呐另有 <c>BoardView.SonarUsed</c> 事件单独置位（保留兜底，两处同时为真也无害）。
     /// </summary>
     private void TrackSessionFacts()
     {
@@ -794,9 +801,19 @@ public sealed partial class MainWindow : Window
             _maxChordOpened = 0;
         }
 
-        if (session.ItemUsed)
+        if (session.UsedMagnifier)
         {
             _usedMagnifier = true;
+        }
+
+        if (session.UsedSonar)
+        {
+            _usedSonar = true;
+        }
+
+        if (session.UsedFreeze)
+        {
+            _usedFreeze = true;
         }
 
         if (session.IsTimerFrozen)
@@ -1110,6 +1127,13 @@ public sealed partial class MainWindow : Window
         // Tooltip 这类元素属性不走上面的登记表，用通用助手补一遍（幂等，多扫一次无害）
         Services.XamlLocalizer.LocalizeOnce(RootGrid);
 
+        // ④ v1.4 商店：入口按钮 / 入口提示 / 商店标题的文案都在代码外（XAML 静态字面量），
+        // 扫描登记表不保证收录，这里显式覆盖一次。
+        // 必须放在上面两步**之后**：登记表里若也有这三条，重放会把它们写回中文。
+        ShopButton.Content = Strings.Get("shop.entry");
+        ToolTipService.SetToolTip(ShopEntry, Strings.Get("shop.entryTip"));
+        ShopTitle.Text = Strings.Get("shop.title");
+
         AppPaths.Log($"[LANG] 界面语言={Strings.CurrentCode}（{LanguageCatalog.Resolve(Strings.CurrentCode).ChineseName}）");
     }
 
@@ -1320,7 +1344,10 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        if (!_updateChecker.TryStartCheck(UpdateCheckTrigger.Startup, out string reason))
+        // v1.4 修复：最小间隔必须跟着玩家选的频率档位走（以前 Core 里写死 24 小时，
+        // "每天"档以外的设置都不生效）。"每次启动"档 Normalize 返回 0 → TimeSpan.Zero。
+        TimeSpan minInterval = TimeSpan.FromHours(UpdateFrequency.Normalize(_storage.Settings.UpdateCheckIntervalHours));
+        if (!_updateChecker.TryStartCheck(UpdateCheckTrigger.Startup, minInterval, out string reason))
         {
             AppPaths.Log($"[UPDATE] 启动时不检查更新：{reason}");
             return;
@@ -1349,7 +1376,8 @@ public sealed partial class MainWindow : Window
                     "已恢复自动检查更新", "你手动点了检查更新，暂停已取消。", "update.pause-lifted"));
             }
 
-            if (!_updateChecker.TryStartCheck(UpdateCheckTrigger.Manual, out string reason))
+            // 手动检查不受频率限制：TimeSpan.Zero 交给策略层，Manual 恒放行。
+            if (!_updateChecker.TryStartCheck(UpdateCheckTrigger.Manual, TimeSpan.Zero, out string reason))
             {
                 UpdateStatusText.Text = reason;
                 AppPaths.Log($"[UPDATE] 手动检查被跳过：{reason}");
@@ -1650,7 +1678,8 @@ public sealed partial class MainWindow : Window
         if (_updateCheckMode == "off")
         {
             _updateChecker.IsEnabled = false;
-            bool allowed = _updateChecker.TryStartCheck(UpdateCheckTrigger.Manual, out string reason);
+            // 手动检查传 Zero（策略层对 Manual 恒放行），这里只为验证 IsEnabled 的拦截。
+            bool allowed = _updateChecker.TryStartCheck(UpdateCheckTrigger.Manual, TimeSpan.Zero, out string reason);
             AppPaths.Log($"[UPDATECHECK] IsEnabled=false 时允许检查={allowed}（期望 False），原因={reason}");
             return;
         }
@@ -1667,7 +1696,8 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        bool allowed = _updateChecker.TryStartCheck(UpdateCheckTrigger.Manual, out string reason);
+        // 自检走手动路径：TimeSpan.Zero = 不做时间限制（策略层对 Manual 恒放行）。
+        bool allowed = _updateChecker.TryStartCheck(UpdateCheckTrigger.Manual, TimeSpan.Zero, out string reason);
         AppPaths.Log($"[UPDATECHECK] 允许检查={allowed}，原因={reason}");
         if (!allowed)
         {
@@ -2427,7 +2457,9 @@ public sealed partial class MainWindow : Window
 
         LevelListPanel.Children.Clear();
 
-        int columns = LevelListColumns();
+        // 用当前真实可用宽度算一次列数，并记下来：SizeChanged 拿它跟下一次的估算比较，
+        // 只有"跨过列数阈值"才重建（防自激，见构造里的说明）。
+        int columns = ComputeLevelListColumns();
         _levelListColumns = columns;
         for (int chapter = 1; chapter <= LevelTable.ChapterCount; chapter++)
         {
@@ -2504,19 +2536,17 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 关卡列表排几列。
+    /// 关卡列表按<b>当前</b>可用宽度排几列。<b>不读缓存</b>。
     ///
     /// 面板工具条（标题 + 汇总 + 上一关/下一关 + 返回）会占掉一部分宽度，
     /// 窗口被拖窄时固定三列会把卡片挤成"每行只放得下两个、第三个跑到下一行"的怪样子，
     /// 所以按面板实际可用宽度决定列数。
+    ///
+    /// 尺寸变化时必须用它来算（而不是 <see cref="LevelListColumns"/>）：后者带缓存，
+    /// 拿来跟"上次用的列数"比较会永远相等，重排就永远不会触发。
     /// </summary>
-    private int LevelListColumns()
+    private int ComputeLevelListColumns()
     {
-        if (_levelListColumns > 0)
-        {
-            return _levelListColumns;
-        }
-
         double available = LevelListPanel.ActualWidth;
 
         // 面板还没排版时（ActualWidth 为 0）按窗口宽度估算，够宽就三列
@@ -2527,6 +2557,20 @@ public sealed partial class MainWindow : Window
 
         // 一张卡片至少要 ~210 DIP 才不至于把"9×9 / 10 雷 · ★★★ · 最好 0.0s"折成好几行
         return available >= 3 * 210 ? 3 : 2;
+    }
+
+    /// <summary>
+    /// 本次布局实际用的列数（<b>带缓存</b>：算过一次之后就返回记下的值）。
+    /// 需要"现在到底该排几列"时用 <see cref="ComputeLevelListColumns"/>。
+    /// </summary>
+    private int LevelListColumns()
+    {
+        if (_levelListColumns > 0)
+        {
+            return _levelListColumns;
+        }
+
+        return ComputeLevelListColumns();
     }
 
     /// <summary>本次布局用了几个列（0 = 还没算过）。用来避免每次尺寸变化都重建列表。</summary>
@@ -2598,9 +2642,13 @@ public sealed partial class MainWindow : Window
         LevelPanel.Visibility = Visibility.Collapsed;
         AttachSession();
 
+        // 普通关盘的雷位是锁定的（同一关永远同一张盘，可原样重试刷星）；
+        // 隐藏关用的是随机盘，重试会换一张 —— 这句提示得跟着关卡类型走，不能写死。
+        string retryHint = Strings.Get(level.IsSecret ? "level.start.retryRandom" : "level.start.retryFixed");
+
         _notifier.Publish(GameNotification.QuietInfo(
             $"关卡 {level.DisplayId}：{level.Name}",
-            $"{level.BoardText} · {level.GoalText} · 同一关盘面固定，失败可原样重试。",
+            $"{level.BoardText} · {level.GoalText} · {retryHint}",
             "level.start"));
     }
 
@@ -2726,7 +2774,7 @@ public sealed partial class MainWindow : Window
 
         HistoryNoteText.Text =
             "这些数据只存在 %LOCALAPPDATA%\\MineSweeper2\\history.json 这一个文件里（第一次启动会把旧的 data\\ 搬过来）：" +
-            "把它（或整个 data\\ 文件夹）删掉，历史就从零重新开始。";
+            "把它（或整个 %LOCALAPPDATA%\\MineSweeper2 文件夹）删掉，历史就从零重新开始。";
 
         HistoryOverlay.Visibility = Visibility.Visible;
     }
@@ -2783,7 +2831,211 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (mode == "shop")
+        {
+            RunShopCheck();
+            return;
+        }
+
+        if (mode == "magnifier")
+        {
+            RunMagnifierShapeCheck();
+            return;
+        }
+
         RunSonarUiCheck();
+    }
+
+    /// <summary>
+    /// <c>SAOLEI_UI=magnifier</c>：实测放大镜已经是 **2×2、点在左上角**（v1.4 削弱后的行为）。
+    /// 走真实路径：进瞄准态 → 真的点下去 → 报告覆盖了哪几格。
+    /// </summary>
+    private void RunMagnifierShapeCheck()
+    {
+        if (!ViewModel.StartNewGame(
+                new GameStartOptions(GameMode.ClassicWithItems, FirstClickOpening: true, PauseTimerOnFocusLoss: false, LockedBoard: false),
+                16, 16, 40, seed: null, difficultyId: null, out string? modeError))
+        {
+            AppPaths.Log($"[MAGCHECK] 开局失败：{modeError}");
+            return;
+        }
+
+        AttachSession();
+
+        if (ViewModel.Session is not { } session)
+        {
+            return;
+        }
+
+        // 自检要临时把库存改成 1 才能走"用放大镜"这条路径；但 ActiveInventory 就是账号共用的那份库存，
+        // 改完不还原的话，关窗时的 SaveProgress 会把玩家真实库存写成自检值。
+        // 所以：备份原值 + try/finally 还原（自检过程中的日志/断言语义不变）。
+        ItemInventory inventory = ViewModel.ActiveInventory;
+        int magnifierBackup = inventory.Progress.MagnifierCount;
+
+        try
+        {
+            inventory.Progress.MagnifierCount = 1;
+            session.Reveal(session.Board.Index(8, 8));
+            ViewModel.Refresh();
+            UpdateMagnifierSlot();
+
+            AppPaths.Log(
+                $"[MAGCHECK] 配置：宽={session.MagnifierWidth} 高={session.MagnifierHeight} " +
+                $"锚点=({session.MagnifierShape.AnchorX},{session.MagnifierShape.AnchorY})（期望 2/2/(0,0)）");
+
+            // 真实路径：进瞄准态 → 在 (5,5) 放下去
+            if (!_board.BeginAiming(0))
+            {
+                AppPaths.Log("[MAGCHECK] ✗ 进不了放大镜瞄准态");
+                return;
+            }
+
+            int target = session.Board.Index(5, 5);
+            if (_board.TryGetCellCenterForProbe(target, out double cx, out double cy))
+            {
+                _board.ClickAtForProbe(cx, cy);
+            }
+
+            int[] expected =
+            [
+                session.Board.Index(5, 5), session.Board.Index(6, 5),
+                session.Board.Index(5, 6), session.Board.Index(6, 6),
+            ];
+            int[] actual = [.. expected.Where(session.Board.IsItemRevealed)];
+
+            AppPaths.Log(
+                $"[MAGCHECK] 点击 (5,5) 后：应覆盖 (5,5)(6,5)(5,6)(6,6) 共 4 格，" +
+                $"实际被透视 {actual.Length} 格 = {string.Join(",", actual.Select(i => $"({session.Board.XOf(i)},{session.Board.YOf(i)})"))}");
+        }
+        finally
+        {
+            inventory.Progress.MagnifierCount = magnifierBackup;
+            ViewModel.Refresh();
+            UpdateMagnifierSlot();
+        }
+    }
+
+    /// <summary>
+    /// <c>SAOLEI_UI=shop</c>：商店机制自检（v1.4）。
+    ///
+    /// 走的是真实路径：开一局带道具的盘 → 扫出足够的雷赚金币 → 打开商店（真实按钮处理函数）
+    /// → 逐个买（买不起的、买得起的都试）→ 关商店。
+    /// 覆盖需求里的每一条：金币来源、三种价格、买完扣钱、退出商店、每局清零。
+    /// </summary>
+    private void RunShopCheck()
+    {
+        // 用 16×16 / 40 雷：要插到 30 面旗才能攒够放大镜的价（初级只有 10 颗雷，不够）
+        if (!ViewModel.StartNewGame(
+                new GameStartOptions(GameMode.ClassicWithItems, FirstClickOpening: true, PauseTimerOnFocusLoss: false, LockedBoard: false),
+                16,
+                16,
+                40,
+                seed: null,
+                difficultyId: null,
+                out string? modeError))
+        {
+            AppPaths.Log($"[SHOPCHECK] 开局失败：{modeError}");
+            return;
+        }
+
+        AttachSession();
+
+        if (ViewModel.Session is not { } session)
+        {
+            return;
+        }
+
+        // 自检为了验证"购买成功"会临时把账号库存腾空/改数，而 ActiveInventory 就是账号共用的那份库存：
+        // 不还原的话，关窗时的 SaveProgress 会把玩家真实库存写成自检值（v1.4 遗留）。
+        // 所以：备份原值 + try/finally 还原。自检过程的日志与断言仍读当时的真实值，语义不变。
+        ItemInventory inventory = ViewModel.ActiveInventory;
+        int magnifierBackup = inventory.Progress.MagnifierCount;
+
+        // 自检里插的 30 面正确旗会累加"累计扫雷数"，而它也是账号统计（关窗会落盘）；
+        // 一并备份/还原，保证跑一次自检不改玩家数据。
+        int correctFlagsBackup = inventory.Progress.CorrectMineFlagsTotal;
+
+        try
+        {
+            session.Reveal(session.Board.Index(4, 4));
+            int[] mines = session.Board.GetMineIndexes();
+
+            AppPaths.Log($"[SHOPCHECK] 开局：金币={session.Coins.Coins}（期望 0） · 右上角显示=『{CoinText.Text}』");
+
+            // 扫出 10 颗雷 → 10 金币（三种道具都还买不起）
+            for (int i = 0; i < 10; i++)
+            {
+                session.ToggleFlag(mines[i]);
+            }
+
+            OnBoardStateChanged(_board, EventArgs.Empty);
+            AppPaths.Log($"[SHOPCHECK] 扫出 10 颗雷：金币={session.Coins.Coins}（期望 10） · 右上角显示=『{CoinText.Text}』");
+
+            // 真实入口打开商店
+            OnShopClick(this, new RoutedEventArgs());
+            AppPaths.Log(
+                $"[SHOPCHECK] 打开商店：可见={ShopOverlay.Visibility}（期望 Visible） · " +
+                $"金币行=『{ShopCoins.Text}』 · 放大镜按钮可用={ShopMagnifierButton.IsEnabled}（期望 False，10<30） · " +
+                $"声呐按钮可用={ShopSonarButton.IsEnabled}（期望 False，10<20）");
+
+            // 买不起时点购买：不扣钱
+            OnShopBuyMagnifier(this, new RoutedEventArgs());
+            AppPaths.Log($"[SHOPCHECK] 金币不足时买放大镜：金币={session.Coins.Coins}（期望仍为 10）");
+
+            // 再攒到 30 金币
+            for (int i = 10; i < 30; i++)
+            {
+                session.ToggleFlag(mines[i]);
+            }
+            OnBoardStateChanged(_board, EventArgs.Empty);
+            OnShopClick(this, new RoutedEventArgs());   // 重新打开以刷新按钮
+            AppPaths.Log(
+                $"[SHOPCHECK] 攒到 30 金币：金币={session.Coins.Coins} · " +
+                $"放大镜按钮可用={ShopMagnifierButton.IsEnabled}（期望 True） · " +
+                $"按钮文字=『{ShopMagnifierButton.Content}』");
+
+            int magnifierBefore = inventory.MagnifierCount;
+
+            // 满仓时买不了（正确行为）。为了验证"买成功"这条路径，先腾空一格：
+            // 直接清掉账号库存（这是自检；原值已在 finally 里还原，不会落到玩家存档）。
+            if (inventory.IsFull(ItemIds.Magnifier))
+            {
+                AppPaths.Log(
+                    $"[SHOPCHECK] 放大镜满仓（{magnifierBefore}/{inventory.MaxHold}），" +
+                    $"按钮置灰是正确行为；为验证购买路径先腾空。");
+                inventory.Progress.MagnifierCount = 0;
+                magnifierBefore = 0;
+                ViewModel.Refresh();
+                OnShopClick(this, new RoutedEventArgs());
+            }
+
+            OnShopBuyMagnifier(this, new RoutedEventArgs());
+            AppPaths.Log(
+                $"[SHOPCHECK] 买放大镜：金币={session.Coins.Coins}（期望 0） · " +
+                $"放大镜 {magnifierBefore}→{inventory.MagnifierCount}（期望 +1） · " +
+                $"本局购买={inventory.PurchasedCountOf(ItemIds.Magnifier)}（期望 1）");
+
+            // 退出商店
+            OnShopCloseClick(this, new RoutedEventArgs());
+            AppPaths.Log($"[SHOPCHECK] 关商店：可见={ShopOverlay.Visibility}（期望 Collapsed）");
+
+            // 新局清零
+            ViewModel.StartNewGame(
+                new GameStartOptions(GameMode.ClassicWithItems, FirstClickOpening: true, PauseTimerOnFocusLoss: false, LockedBoard: false),
+                9, 9, 10, seed: null, difficultyId: null, out _);
+            AttachSession();
+            AppPaths.Log(
+                $"[SHOPCHECK] 开新局：金币={ViewModel.Session?.Coins.Coins}（期望 0） · " +
+                $"本局购买={inventory.PurchasedCountOf(ItemIds.Magnifier)}（期望 0）");
+        }
+        finally
+        {
+            inventory.Progress.MagnifierCount = magnifierBackup;
+            inventory.Progress.CorrectMineFlagsTotal = correctFlagsBackup;
+            ViewModel.Refresh();
+            UpdateMagnifierSlot();
+        }
     }
 
     /// <summary>
@@ -2908,8 +3160,10 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        // 发一个声呐；先手动开一格完成布雷（声呐要求首点之后才能用）
-        ViewModel.ActiveInventory.Progress.SonarCount = 1;
+        // 发一个声呐；先手动开一格完成布雷（声呐要求首点之后才能用）。
+        // 用"本局购买"这一层而不是直接改账号库存：自检消耗掉的是本局的那一个，
+        // 关窗 SaveProgress 时不会动玩家真正攒下的道具。
+        ViewModel.ActiveInventory.SessionPurchases.SonarCount = 1;
         session.Reveal(session.Board.Index(4, 4));
         ViewModel.Refresh();
         UpdateMagnifierSlot();
@@ -3051,6 +3305,11 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        // 自检插的 20 面正确旗会累加账号统计（累计扫雷数），关窗 SaveProgress 会落盘。
+        // 备份后恢复，保证自检不改玩家数据。
+        ItemInventory inventory = ViewModel.ActiveInventory;
+        int correctFlagsBackup = inventory.Progress.CorrectMineFlagsTotal;
+
         session.Reveal(session.Board.Index(4, 4));
 
         int[] mines = session.Board.GetMineIndexes();
@@ -3061,12 +3320,14 @@ public sealed partial class MainWindow : Window
         }
 
         // Core 直调不会触发 BoardView 的 BoardStateChanged（6 个触发点都在真实输入路径里），
-        // 所以这里显式走一遍"事件 -> 处理函数"，验的正是处理函数里那行 RefreshItemChoiceOverlay()。
+        // 所以这里显式走一遍"事件 -> 处理函数"，验的正是处理函数里那行 UpdateCoinDisplay()。
         OnBoardStateChanged(_board, EventArgs.Empty);
 
         AppPaths.Log(
             $"[FLAG20] 模式={(ViewModel.IsLevelRun ? "关卡" : "普通")} · 插了 {placed} 面正确的旗 · " +
-            $"攒下奖励={ViewModel.ActiveInventory.PendingRewards} · 弹窗可见={ItemChoiceOverlay.Visibility}（期望 Visible，且没手工刷新）");
+            $"金币={session.Coins.Coins}（期望 {placed}，每颗雷 +1）· 右上角显示=『{CoinText.Text}』");
+
+        inventory.Progress.CorrectMineFlagsTotal = correctFlagsBackup;
     }
 
     private void RunHistoryCheck()
@@ -3108,104 +3369,200 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        // 先记一笔开局时的真实库存（证明"初次赠送三种各 2 个"确实落到了存档里）
-
-        // 每种道具各发一个，然后各用一次，最后逼出一个"三选一"奖励弹窗
+        // 自检要临时把三种道具各发一个、再逼出奖励弹窗；ActiveInventory 是账号共用的那份库存，
+        // 改动不还原的话，关窗时的 SaveProgress 会把玩家真实库存写成自检值（v1.4 遗留）。
+        // 所以：把这里会动的四个字段全部备份 + try/finally 还原，日志/断言语义不变。
         ItemInventory inventory = ViewModel.ActiveInventory;
-        inventory.Progress.SonarCount = 1;
-        inventory.Progress.FreezeCount = 1;
-        inventory.Progress.MagnifierCount = Math.Max(1, inventory.Progress.MagnifierCount);
+        int magnifierBackup = inventory.Progress.MagnifierCount;
+        int sonarBackup = inventory.Progress.SonarCount;
+        int freezeBackup = inventory.Progress.FreezeCount;
+        int pendingRewardsBackup = inventory.Progress.PendingRewards;
 
-        session.Reveal(session.Board.Index(4, 4));
-
-        SonarScanResult scan = session.ScanWithSonar(session.Board.Index(4, 4));
-        AppPaths.Log($"[ITEMCHECK] 声呐：成功={scan.Success} 区域={((scan.Radius * 2) + 1)}×{((scan.Radius * 2) + 1)} 雷数={scan.MineCount} 剩余={scan.RemainingCount}");
-
-        TimeFreezeResult freeze = session.FreezeTimer();
-        AppPaths.Log($"[ITEMCHECK] 冻结：启动={freeze.Started} 秒数={freeze.FrozenSeconds} 冻结中={session.IsTimerFrozen} 剩余={freeze.RemainingCount}");
-
-        inventory.Progress.PendingRewards = 1;
-        ViewModel.Refresh();
-        UpdateMagnifierSlot();
-        UpdateItemSlots();
-        RefreshItemChoiceOverlay();
-        AppPaths.Log($"[ITEMCHECK] 三选一弹窗：可见={ItemChoiceOverlay.Visibility}（期望 Visible）");
-    }
-    // ------------------------------------------------------------ "三选一"奖励弹窗（v0.6）
-
-    /// <summary>
-    /// 按攒下的奖励次数刷新"三选一"弹窗：每扫到 RewardThreshold（默认 20）颗雷攒一次，
-    /// 玩家挑一个道具进物品栏；某个道具满了就把它禁用（奖励不会被白扣，换一个即可）。
-    /// </summary>
-    private void RefreshItemChoiceOverlay()
-    {
-        if (ViewModel.Session is null)
+        try
         {
-            ItemChoiceOverlay.Visibility = Visibility.Collapsed;
-            return;
-        }
+            // 每种道具各发一个，然后各用一次，最后逼出一个"三选一"奖励弹窗
+            inventory.Progress.SonarCount = 1;
+            inventory.Progress.FreezeCount = 1;
+            inventory.Progress.MagnifierCount = Math.Max(1, inventory.Progress.MagnifierCount);
 
-        ItemInventory inventory = ViewModel.ActiveInventory;
-        if (inventory.PendingRewards <= 0)
+            session.Reveal(session.Board.Index(4, 4));
+
+            SonarScanResult scan = session.ScanWithSonar(session.Board.Index(4, 4));
+            AppPaths.Log($"[ITEMCHECK] 声呐：成功={scan.Success} 区域={((scan.Radius * 2) + 1)}×{((scan.Radius * 2) + 1)} 雷数={scan.MineCount} 剩余={scan.RemainingCount}");
+
+            TimeFreezeResult freeze = session.FreezeTimer();
+            AppPaths.Log($"[ITEMCHECK] 冻结：启动={freeze.Started} 秒数={freeze.FrozenSeconds} 冻结中={session.IsTimerFrozen} 剩余={freeze.RemainingCount}");
+
+            inventory.Progress.PendingRewards = 1;
+            ViewModel.Refresh();
+            UpdateMagnifierSlot();
+            UpdateItemSlots();
+            UpdateCoinDisplay();
+            AppPaths.Log($"[ITEMCHECK] 商店入口：金币={session.Coins.Coins}（期望 0 起）· 商店可见={ShopOverlay.Visibility}（期望 Collapsed）");
+        }
+        finally
         {
-            ItemChoiceOverlay.Visibility = Visibility.Collapsed;
-            return;
+            inventory.Progress.MagnifierCount = magnifierBackup;
+            inventory.Progress.SonarCount = sonarBackup;
+            inventory.Progress.FreezeCount = freezeBackup;
+            inventory.Progress.PendingRewards = pendingRewardsBackup;
+            ViewModel.Refresh();
+            UpdateMagnifierSlot();
+            UpdateItemSlots();
         }
-
-        ItemChoiceTitle.Text = "选一个道具";
-        ItemChoiceHint.Text =
-            $"每扫到 {inventory.RewardThreshold} 颗雷攒一次奖励：从下面三个里挑一个。" +
-            "三格道具各自最多存 3 个，满了就先挑别的。";
-        ItemChoiceRemaining.Text = $"还攒着 {inventory.PendingRewards} 次奖励";
-
-        ConfigureChoiceButton(ChoiceMagnifierButton, inventory, ItemIds.Magnifier);
-        ConfigureChoiceButton(ChoiceSonarButton, inventory, ItemIds.Sonar);
-        ConfigureChoiceButton(ChoiceFreezeButton, inventory, ItemIds.Freeze);
-
-        ItemChoiceOverlay.Visibility = Visibility.Visible;
     }
+    // ------------------------------------------------------------ 道具商店（v1.4）
+    //
+    // 经济规则（需求原文）：
+    //   · 每扫出一个雷 +1 金币（"扫出"= 正确插旗标记一颗雷，与"正确标记"是同一事件）
+    //   · 放大镜 30 金币 / 声呐 20 / 冻结 20
+    //   · 每局重新开始时金币清零；关卡模式每到新的一关也清零
+    //   · 买到的道具进"本局购买"，随金币一起清零
+    // 金币钱包在 GameSession 上（CoinWallet），所以"新局 = 新钱包"是结构保证的。
 
-    private static void ConfigureChoiceButton(Button button, ItemInventory inventory, string itemId)
-    {
-        button.Content = $"{ItemIds.DisplayNameOf(itemId)}（已有 {inventory.CountOf(itemId)} / {inventory.MaxHold}）";
-        button.IsEnabled = !inventory.IsFull(itemId);
-        ToolTipService.SetToolTip(button, ItemIds.DescriptionOf(itemId));
-    }
+    /// <summary>打开商店（扫雷过程中随时可以点）。</summary>
+    private void OnShopClick(object sender, RoutedEventArgs e) => ShowShop();
 
-    private void OnItemChoiceMagnifier(object sender, RoutedEventArgs e) => ClaimItemReward(ItemIds.Magnifier);
+    private void OnShopCloseClick(object sender, RoutedEventArgs e) => HideShop();
 
-    private void OnItemChoiceSonar(object sender, RoutedEventArgs e) => ClaimItemReward(ItemIds.Sonar);
+    private void OnShopBuyMagnifier(object sender, RoutedEventArgs e) => BuyFromShop(ItemIds.Magnifier);
 
-    private void OnItemChoiceFreeze(object sender, RoutedEventArgs e) => ClaimItemReward(ItemIds.Freeze);
+    private void OnShopBuySonar(object sender, RoutedEventArgs e) => BuyFromShop(ItemIds.Sonar);
 
-    private void ClaimItemReward(string itemId)
+    private void OnShopBuyFreeze(object sender, RoutedEventArgs e) => BuyFromShop(ItemIds.Freeze);
+
+    private void ShowShop()
     {
         if (ViewModel.Session is null)
         {
             return;
         }
 
-        if (!ViewModel.Session.TryClaimReward(itemId, out ItemGrantResult result) || !result.Granted)
+        RefreshShop();
+        ShopOverlay.Visibility = Visibility.Visible;
+        AppPaths.Log($"[商店] 打开：金币={ViewModel.Session.Coins.Coins}");
+    }
+
+    private void HideShop()
+    {
+        ShopOverlay.Visibility = Visibility.Collapsed;
+
+        // 关商店后把棋盘焦点与视图还回去（商店是覆盖层，关掉就能直接接着扫）
+        UpdateCoinDisplay();
+    }
+
+    /// <summary>按当前金币与库存刷新商店里的三个条目与按钮可用性。</summary>
+    private void RefreshShop()
+    {
+        if (ViewModel.Session is not { } session)
+        {
+            return;
+        }
+
+        CoinWallet wallet = session.Coins;
+        ItemInventory inventory = ViewModel.ActiveInventory;
+
+        ShopCoins.Text = Strings.Get("shop.coins", wallet.Coins);
+        ShopEarned.Text = Strings.Get("shop.earnedThisGame", wallet.EarnedTotal, wallet.SpentTotal);
+        ShopHint.Text = Strings.Get("shop.subtitle");
+
+        ConfigureShopButton(ShopMagnifierButton, session, inventory, ItemIds.Magnifier);
+        ConfigureShopButton(ShopSonarButton, session, inventory, ItemIds.Sonar);
+        ConfigureShopButton(ShopFreezeButton, session, inventory, ItemIds.Freeze);
+        ShopCloseButton.Content = Strings.Get("shop.close");
+    }
+
+    private void ConfigureShopButton(Button button, GameSession session, ItemInventory inventory, string itemId)
+    {
+        int price = session.ShopPriceOf(itemId);
+        string name = ItemIds.DisplayNameOf(itemId);
+        int owned = inventory.CountOf(itemId);
+
+        bool affordable = session.Coins.Coins >= price;
+        bool hasRoom = !inventory.IsFull(itemId);
+
+        button.Content = $"{name}　{Strings.Get("shop.price", price)}　" +
+                         Strings.Get("shop.owned", owned, inventory.MaxHold);
+
+        // 买不起或格子满了都置灰 —— 但仍然显示价格与缺口，玩家一眼知道要攒多少
+        button.IsEnabled = affordable && hasRoom;
+
+        string tip = ItemIds.DescriptionOf(itemId);
+        if (!hasRoom)
+        {
+            tip = Strings.Get("shop.full");
+        }
+        else if (!affordable)
+        {
+            tip = Strings.Get("shop.notEnough", price - session.Coins.Coins);
+        }
+
+        ToolTipService.SetToolTip(button, tip);
+    }
+
+    private void BuyFromShop(string itemId)
+    {
+        if (ViewModel.Session is not { } session)
+        {
+            return;
+        }
+
+        ShopPurchaseResult result = session.TryBuyItem(itemId);
+        string name = ItemIds.DisplayNameOf(itemId);
+
+        if (!result.Bought)
         {
             _notifier.Publish(GameNotification.Warning(
-                "这个道具已经满了",
-                "换一个吧 —— 奖励不会因为选了满的道具而丢掉。",
-                "item.claim-full"));
+                Strings.Get("shop.title"),
+                result.Outcome switch
+                {
+                    ShopPurchaseOutcome.NotEnoughCoins => Strings.Get("shop.notEnough", result.Shortfall),
+                    ShopPurchaseOutcome.InventoryFull => Strings.Get("shop.full"),
+                    _ => ShopPurchaseResult.TextOf(result.Outcome),
+                },
+                "shop.rejected"));
+
+            AppPaths.Log($"[商店] 购买失败：{itemId} 结果={result.Outcome} 金币={result.CoinsAfter}");
+            RefreshShop();
             return;
         }
 
-        AppPaths.Log($"[道具] 领取奖励：{ItemIds.DisplayNameOf(itemId)}（现在 {result.CountAfter} 个）。");
+        AppPaths.Log(
+            $"[商店] 买到 {name}：花 {result.Price} 金币，剩 {result.CoinsAfter}，现有 {result.CountAfter} 个。");
 
         _notifier.Publish(GameNotification.Success(
-            $"获得道具：{ItemIds.DisplayNameOf(itemId)}",
-            result.InventoryFull
-                ? $"{ItemIds.DisplayNameOf(itemId)} 已经存满（{ViewModel.ActiveInventory.MaxHold} 个）。"
-                : ItemIds.DescriptionOf(itemId),
-            "item.claimed"));
+            Strings.Get("shop.title"),
+            Strings.Get("shop.bought", name, result.CoinsAfter),
+            "shop.bought"));
 
         ViewModel.Refresh();
         UpdateMagnifierSlot();
-        RefreshItemChoiceOverlay();
+        UpdateCoinDisplay();
+        RefreshShop();
+    }
+
+    /// <summary>
+    /// 刷新棋盘右上角的"金币"显示（v1.4）。
+    /// 每局 / 每关开始时会自动变成 0（新会话 = 新钱包），所以这里只需要"读当前会话"。
+    /// </summary>
+    private void UpdateCoinDisplay()
+    {
+        int coins = ViewModel.Session?.Coins.Coins ?? 0;
+        CoinText.Text = $"🪙 {coins}";
+
+        // 商店面板开着时也顺手同步（买完立刻变数字）
+        if (ShopOverlay.Visibility == Visibility.Visible)
+        {
+            RefreshShop();
+        }
+    }
+
+    /// <summary>新局 / 新关卡开始：清零本局购买（金币由新会话自带的 CoinWallet 天然归零）。</summary>
+    private void ResetShopSession()
+    {
+        ViewModel.Inventory.ResetSession();
+        HideShop();
+        UpdateCoinDisplay();
     }
     // ------------------------------------------------------------ 胜利结算小弹窗
 
@@ -3266,8 +3623,8 @@ public sealed partial class MainWindow : Window
     private void OnSettlementRetryClick(object sender, RoutedEventArgs e)
     {
         HideSettlementOverlay();
-        RefreshItemChoiceOverlay();
         RestartCurrentGame();
+        UpdateCoinDisplay();
     }
 
     /// <summary>
@@ -3282,8 +3639,11 @@ public sealed partial class MainWindow : Window
         }
 
         HideSettlementOverlay();
-        RefreshItemChoiceOverlay();
         StartLevel(next);
+
+        // 需求：闯关模式每到新的一关，金币清零（新会话自带新 CoinWallet；本局购买也一并清掉）
+        ResetShopSession();
+        UpdateCoinDisplay();
     }
 
     /// <summary>关卡目标条只在关卡模式显示。</summary>

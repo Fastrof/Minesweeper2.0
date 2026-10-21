@@ -23,7 +23,11 @@ public readonly record struct LevelOutcome(
         {
             if (!Won)
             {
-                return MineSweeper.Core.Localization.Strings.Get("toast.levelFailedBody", Seconds.ToString("F1"));
+                // 隐藏关是"首点后才布雷"的随机盘：重试不会回到同一张盘，
+                // 所以失败文案不能沿用主线那句"同一关盘面固定"。
+                return MineSweeper.Core.Localization.Strings.Get(
+                    Level.IsSecret ? "toast.levelFailedBodyRandom" : "toast.levelFailedBody",
+                    Seconds.ToString("F1"));
             }
 
             string text = MineSweeper.Core.Localization.Strings.Get("flow.levelCleared", StarsText, Seconds.ToString("F1"));

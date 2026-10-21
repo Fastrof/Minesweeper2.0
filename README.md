@@ -12,9 +12,9 @@
 
 | | |
 |---|---|
-| **当前版本** | `v1.3` |
+| **当前版本** | `v1.4` |
 | **构建** | `build.cmd` → **0 警告 0 错误** |
-| **测试** | `test.cmd` → **329 / 329 通过**（约 1 秒） |
+| **测试** | `test.cmd` → **360 / 360 通过**（约 1 秒） |
 | **仓库** | https://github.com/Fastrof/Minesweeper2.0 |
 | **商店** | [Microsoft Store](https://apps.microsoft.com/detail/9NKR2M2ZDDL3) |
 | **许可** | 仅供学习与交流使用 |
@@ -36,8 +36,8 @@
 
 - **关卡模式**：6 章 × 6 关 = **36 关**。每关一张固定盘 + 按用时评星（★★★ / ★★ / ★），逐关解锁；
   通关弹结算卡片，游戏内有「◀ 上一关 / 下一关 ▶」可以连着打。
-- **三个道具**：放大镜（透视 3×3）、声呐扫描（只报 3×3 里有几颗雷）、时间冻结（暂停倒计时 20 秒）。
-  每扫 20 颗雷攒一次"三选一"补给。
+- **三个道具**：放大镜（透视 2×2，点中的格子是这块区域的左上角）、声呐扫描（只报 3×3 里有几颗雷）、
+  时间冻结（暂停倒计时 20 秒）。首次进入每种各送 2 个，持有上限 9 个。
 - **可调主题**：19 个颜色键组成的调色板，内置多套配色。
 - **代码合成音效**：翻开 / 插旗 / chord / 踩雷 / 胜利 / 启动，共 6 个。
 - **缩放平移与远景降级**：单局最大 **4096×4096**；100 万格同屏渲染实测约 **70 FPS**。
@@ -47,6 +47,9 @@
 - **更新设置（v1.2）**：自动检查频率（每次启动 / 每天 / 每 3 天 / 每周 / 每 2 周 / 每月）、可**暂停更新**并选到哪天为止；升级后首次打开自动展示「本版新增」。
 - **中英双语（v1.3）**：界面与全部文案（含 Toast、两个「关于」窗口、关卡/道具/成就/更新面板）支持**简体中文 / English 实时切换**，首次安装默认简体中文。
 - **界面颜色主题（v1.3）**：**跟随系统 / 浅色 / 深色**；深色下自动保证**棋盘与窗口背景分得开**（按亮度差自动微调棋盘底色，高对比主题同样适用）。
+- **金币商店（v1.4）**：棋盘右上角有「🛒 商店」，扫雷过程中随时能点开。每扫出一颗雷得 **1 金币**；
+  放大镜 **30** 金币、声呐扫描 **20**、时间冻结 **20**。金币与买到的道具**只在本局有效**，
+  每局（关卡模式每关）都从 0 开始，退出即清空。
 
 ## 快速开始
 
@@ -56,7 +59,7 @@ cd Minesweeper2.0
 
 build.cmd     :: 编译整个解决方案（x64），0 警告 0 错误
 run.cmd       :: 启动游戏
-test.cmd      :: 跑 Core 层单测（162 个）
+test.cmd      :: 跑 Core 层单测（360 个）
 ```
 
 脚本会依次探测 `%ProgramFiles%\dotnet`、`%ProgramFiles(x86)%\dotnet`、`%DOTNET_ROOT%`、`D:\dotnet`，
@@ -101,11 +104,11 @@ src\MineSweeper.App\bin\x64\Debug\net10.0-windows10.0.19041.0\MineSweeper2.exe
 | `history.json` | 累计统计（从第一次扫雷起） |
 | `achievements.json` | 成就与成就点（v1.1） |
 | `updatestate.json` | 检查更新的状态：上次检查时间 / 已提示版本 / 已跳过版本（v1.1） |
-| `config.json` | 道具与棋盘配置（可手改，不用重编译） |
+| `config.json` | 道具与棋盘配置（可手改，不用重编译）；v1.4 起带 `schemaVersion: 2`、放大镜宽高与商店价格键（`shop.*.price`） |
 | `app.log` | 诊断日志 |
 | `sounds\` | 首次运行合成出来的音效；**已存在的不覆盖**，想换掉直接放同名 wav |
 
-所有存档都是**原子写盘**：损坏会留备份重建，`schemaVersion` 过新则拒读且不覆盖原文件。
+所有存档都是**原子写盘**（含可手改的 `config.json`）：损坏会备份并重建；`schemaVersion` 过新时不会覆盖原文件（拒绝写回）。
 
 ## 项目结构
 
@@ -120,7 +123,7 @@ src/
   MineSweeper.Core/         核心逻辑：布雷 / 洪水填充 / chord / 关卡 / 道具 / 存档 / 主题 / 音效合成
   MineSweeper.App/          WinUI 3 外壳：渲染、输入、面板、关于窗口
 tests/
-  MineSweeper.Core.Tests/   162 个 xUnit 用例
+  MineSweeper.Core.Tests/   360 个 xUnit 用例（20 个测试文件）
 ```
 
 > **铁律：游戏规则不要写进 App 层。** 判断标准很简单 —— "这段逻辑能不能不启动 UI 就测"？
@@ -128,25 +131,20 @@ tests/
 
 ## 测试
 
-**265 个用例全部通过。**
+**360 个用例全部通过**（20 个测试文件，约 1 秒；逐文件分配以 `test.cmd` 输出为准）。
 
-| 文件 | 用例 | 覆盖 |
-|---|---|---|
-| `LevelTests.cs` | 35 | 关卡表守门人、星级、解锁、存档、通关判定、前后跳转 |
-| `ThemeAndAudioTests.cs` | 23 | 主题调色板、设置存取、音效合成 |
-| `ItemTests.cs` | 17 | 道具计数与发放 |
-| `BoardGenerationTests.cs` | 15 | 布雷与参数边界 |
-| `AdvancedFeatureTests.cs` | 14 | 锁定盘面、透视迷雾、信息面板 |
-| `HistoryTests.cs` | 14 | 历史记录累计与损坏处理 |
-| `RegressionTests.cs` | 13 | 已修缺陷的回归防线 |
-| `PersistenceTests.cs` | 11 | 存档与记录（原子写盘 / 损坏 / 版本） |
-| `WinConditionTests.cs` | 7 | 胜负判定 + 胜利自动插旗 |
-| `ChordTests.cs` | 5 | chord 判定与"旗插错会炸" |
-| `FloodFillTests.cs` | 5 | 洪水填充（含 1000×1000 全空盘不栈溢出） |
-| `NotificationTests.cs` | 3 | 通知级别与"只入日志"维度 |
-| `AchievementTests.cs` | 56 | 成就目录守门人、判定边界、隐藏成就、进度只增不减、存档降级 |
-| `UpdateTests.cs` | 31 | 版本比较与规范化、GitHub JSON 容错、限流与提示策略、存档降级 |
-| `LockedFirstClickTests.cs` | 5 | 锁定盘面首点：点安全格原地开、点到雷挪到最近的 0 格、雷位不因点哪而变 | 选包规则、发布说明里的 SHA256 提取、下载后哈希校验 |
+覆盖范围（按文件归类）：
+
+- `LevelTests.cs` — 关卡表守门人、星级、解锁、存档、前后跳转
+- `AchievementTests.cs` — 成就目录守门人、判定边界、隐藏成就、进度只增不减
+- `UpdateTests.cs` / `UpdatePreferencesTests.cs` / `UpdateDownloadTests.cs` — 版本比较、更新频率与暂停、选包与 SHA256 校验
+- `ThemeAndAudioTests.cs` / `UiThemeTests.cs` — 调色板、音效合成、界面颜色主题与棋盘对比度
+- `ItemTests.cs` / `AreaShapeAndCoinTests.cs` — 道具与金币、商店购买、放大镜 2×2 的区域形状
+- `LocalizationTests.cs` — 中英语言表完整性与实时切换
+- `BoardGenerationTests.cs` / `FloodFillTests.cs` / `ChordTests.cs` / `WinConditionTests.cs` — 布雷、洪水填充、chord、胜负判定
+- `AdvancedFeatureTests.cs` / `LockedFirstClickTests.cs` — 锁定盘面、透视迷雾、信息面板
+- `PersistenceTests.cs` / `HistoryTests.cs` — 原子写盘、损坏降级、记录与历史累计
+- `RegressionTests.cs` / `NotificationTests.cs` — 已修缺陷的回归防线与通知分级
 
 ---
 

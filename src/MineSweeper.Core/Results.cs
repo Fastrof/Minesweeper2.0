@@ -97,6 +97,9 @@ public enum ItemUseCheck
 
     /// <summary>已经在冻结中，叠加一层没有意义（不消耗道具）。</summary>
     AlreadyFrozen = 8,
+
+    /// <summary>上一片区域还在分帧展开，此时不接受会改动棋盘的操作。</summary>
+    FloodPending = 9,
 }
 
 /// <summary>声呐扫描的结果（§5.6 的同类信息展示，但只给数量、不给位置）。</summary>

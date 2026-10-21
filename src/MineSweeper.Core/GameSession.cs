@@ -65,11 +65,16 @@ public sealed class GameSession
         DifficultyId = difficultyId;
         Locked = locked;
         _random = new Random(seed);
-        _magnifier = new MagnifierItem(inventory is null ? MagnifierItem.DefaultRadius : inventory.Config.MagnifierRadius);
+        _magnifier = new MagnifierItem(
+            inventory?.Config.MagnifierWidth ?? MagnifierItem.DefaultWidth,
+            inventory?.Config.MagnifierHeight ?? MagnifierItem.DefaultHeight);
         _sonar = new SonarScanItem(inventory?.Config);
         _freeze = new TimeFreezeItem(inventory?.Config);
         _itemRevealFadeSeconds = inventory?.Config.MagnifierRevealFadeSeconds ?? 0;
         Status = GameStatus.NotStarted;
+
+        // 金币从 0 开始：它天生是"一局生命周期"的数据（每局/每关清零，见 CoinWallet 的说明）。
+        Coins = new CoinWallet();
     }
 
     /// <summary>棋盘。</summary>
@@ -80,6 +85,12 @@ public sealed class GameSession
 
     /// <summary>跨局进度 / 物品栏；纯经典模式也可能传入（计数照走，但不发放，见 §5.5 ⑤）。</summary>
     public ItemInventory? Inventory { get; }
+
+    /// <summary>
+    /// 本局金币钱包（v1.4 商店）。扫出一颗雷 +1 金币，可在商店里换道具。
+    /// <b>每局重新开始时清零</b>；关卡模式每到新的一关也清零（由创建新会话保证）。
+    /// </summary>
+    public CoinWallet Coins { get; }
 
     /// <summary>本局随机种子。</summary>
     public int Seed { get; }
@@ -105,8 +116,17 @@ public sealed class GameSession
     /// <summary>踩到的雷的格索引（失败后展示全盘雷位用）。</summary>
     public int? ExplodedIndex { get; private set; }
 
-    /// <summary>本局是否使用过道具（§5.5 ⑥：记录要分表）。</summary>
+    /// <summary>本局是否使用过任意道具（§5.5 ⑥：记录要分表）。</summary>
     public bool ItemUsed { get; private set; }
+
+    /// <summary>本局是否用过放大镜（成就判定用，不能靠 <see cref="ItemUsed"/> 推断）。</summary>
+    public bool UsedMagnifier { get; private set; }
+
+    /// <summary>本局是否用过声呐扫描（成就判定用）。</summary>
+    public bool UsedSonar { get; private set; }
+
+    /// <summary>本局是否用过时间冻结（成就判定用）。</summary>
+    public bool UsedFreeze { get; private set; }
 
     /// <summary>剩余雷数 = 总雷数 − 已插旗数（§0 第 5 条）。</summary>
     public int RemainingMines => Board.MineCount - FlagCount;
@@ -117,8 +137,19 @@ public sealed class GameSession
     /// <summary>是否还有未完成的展开（UI 需要继续 pump）。</summary>
     public bool HasPendingFlood => _pendingFill is { IsComplete: false };
 
-    /// <summary>透视半径（跟随配置，默认 1 即 3×3）。</summary>
-    public int MagnifierRadius => _magnifier.Radius;
+    /// <summary>
+    /// 放大镜的作用区域形状（跟随配置，v1.4 起默认 **2×2、被点中的格子是左上角**）。
+    ///
+    /// 以前这里暴露的是"半径"，但半径只能表达奇数边长，2×2 表达不了，
+    /// 所以改成直接暴露形状；UI 画瞄准框/算重绘矩形都按它来，不会画歪。
+    /// </summary>
+    public AreaShape MagnifierShape => _magnifier.Shape;
+
+    /// <summary>放大镜作用区域宽（格）。</summary>
+    public int MagnifierWidth => _magnifier.Width;
+
+    /// <summary>放大镜作用区域高（格）。</summary>
+    public int MagnifierHeight => _magnifier.Height;
 
     /// <summary>
     /// 取走"最近一次操作实际改动过的格索引区间"并清空记录。
@@ -588,6 +619,13 @@ public sealed class GameSession
             return new FlagResult(FlagOutcome.Blocked, index, RemainingMines, false, false, "本局已结束。");
         }
 
+        // 分帧展开期间不接受插旗：泛洪会跳过"已插旗"的格子，
+        // 一旦玩家在中途插旗，那片区域可能少翻开一格，胜负判定就永远差一格。
+        if (HasPendingFlood)
+        {
+            return new FlagResult(FlagOutcome.Blocked, index, RemainingMines, false, false, "上一片区域还在展开，请稍候。");
+        }
+
         if (Board.IsRevealed(index))
         {
             return new FlagResult(FlagOutcome.Blocked, index, RemainingMines, false, false, "已翻开的格子不能插旗。");
@@ -617,7 +655,9 @@ public sealed class GameSession
         FlagCount++;
 
         bool counted = false;
-        bool granted = false;
+
+        // v1.4：正确标记不再直接发道具，"是否产生奖励"恒为 false（保留字段是为了兼容旧调用方与存档）。
+        const bool granted = false;
 
         // 首点之前布雷尚未发生，此时不可能"插对"（§5.5 ① 的同一个前提）
         if (Board.MinesPlaced && Board.IsMine(index) && !Board.HasFlag(index, CellFlags.FlagCounted))
@@ -625,10 +665,14 @@ public sealed class GameSession
             Board.AddFlag(index, CellFlags.FlagCounted);
             counted = true;
 
+            // v1.4 商店：扫出一颗雷 = +1 金币（与"正确标记"是同一个事件）。
+            // 注意金币**不受** ItemsAvailable 影响 —— 纯经典模式也照样赚，因为商店是通用经济系统。
+            Coins.EarnForMine();
+
             if (Inventory is not null)
             {
-                // v0.6：跨阈值不再自动发大镜，而是攒下一次"三选一"奖励（由 UI 弹窗领）。
-                granted = Inventory.RecordCorrectFlag(Settings.ItemsAvailable, Settings.ChoiceRewards);
+                // 正确标记计数照走（历史统计 / 成就用），但 v1.4 起不再发道具奖励。
+                Inventory.RecordCorrectFlag();
             }
         }
 
@@ -751,7 +795,7 @@ public sealed class GameSession
             return ItemUseCheck.NotInInventory;
         }
 
-        if (MagnifierItem.AllAffectedAlreadyItemRevealed(Board, targetIndex, _magnifier.Radius))
+        if (MagnifierItem.AllAffectedAlreadyItemRevealed(Board, targetIndex, _magnifier.Shape))
         {
             return ItemUseCheck.AllAlreadyRevealed;
         }
@@ -770,6 +814,13 @@ public sealed class GameSession
         if (IsFinished)
         {
             return ItemUseCheck.GameFinished;
+        }
+
+        // 分帧展开期间不接放大镜：它会重置"本次改动区间"，
+        // 而 UI 正靠那个区间做局部重绘，重置会让还没画出来的格子留在屏幕上。
+        if (HasPendingFlood)
+        {
+            return ItemUseCheck.FloodPending;
         }
 
         // 首点之前棋盘上还没有雷，放大镜无内容可透视（§5.5 ① 硬约束）
@@ -794,6 +845,7 @@ public sealed class GameSession
 
         Inventory!.TryConsumeMagnifier();
         ItemUsed = true;
+        UsedMagnifier = true;
 
         MagnifierReveal reveal = _magnifier.Apply(Board, targetIndex);
 
@@ -957,6 +1009,10 @@ public sealed class GameSession
         int mines = _sonar.CountMines(this, targetIndex);
         Inventory.TryConsume(SonarScanItem.ItemId);
 
+        // 声呐同样算"用过道具"：记录表的 itemUsed、成就里的"三种都用过"都要能看到它。
+        ItemUsed = true;
+        UsedSonar = true;
+
         LastSonarScan = new SonarScanResult(
             targetIndex, _sonar.Radius, mines, true, ItemUseCheck.Ok, Inventory.SonarCount);
 
@@ -973,23 +1029,72 @@ public sealed class GameSession
         }
 
         Inventory.TryConsume(TimeFreezeItem.ItemId);
+        ItemUsed = true;
+        UsedFreeze = true;
         _freezeStartedAt = _clock.UtcNow;
 
         return new TimeFreezeResult(true, _freeze.Seconds, ItemUseCheck.Ok, Inventory.FreezeCount);
     }
 
-    /// <summary>领取一次"三选一"奖励：把选中的道具放进物品栏。</summary>
-    public bool TryClaimReward(string itemId, out ItemGrantResult result)
+    // ---------------------------------------------------------------- 商店（v1.4）
+
+    /// <summary>
+    /// 在商店里用金币买一个道具（v1.4）。
+    ///
+    /// 五道校验：① 本局是否启用了道具（纯经典模式下商店不卖，因为它本来就不能用）；
+    /// ② 本局是否已结束；③ 商品 Id 是否有有效售价；④ 金币够不够；⑤ 物品栏那一格满没满。
+    /// 全部通过才扣钱并发放，任何一道不过都不扣金币。
+    /// </summary>
+    /// <returns>购买结果（含失败原因与当前金币，UI 直接拿去显示）。</returns>
+    public ShopPurchaseResult TryBuyItem(string itemId)
     {
-        if (Inventory is null)
+        if (Inventory is null || !Settings.ItemsAvailable)
         {
-            result = new ItemGrantResult(false, false, 0);
-            return false;
+            return ShopPurchaseResult.Rejected(ShopPurchaseOutcome.ItemsNotAvailable, itemId, Coins.Coins, 0);
         }
 
-        result = Inventory.ClaimReward(itemId);
-        return result.Granted;
+        if (IsFinished)
+        {
+            return ShopPurchaseResult.Rejected(ShopPurchaseOutcome.GameFinished, itemId, Coins.Coins, 0);
+        }
+
+        int price = Inventory.Config.ShopPriceOf(itemId);
+        if (price <= 0)
+        {
+            return ShopPurchaseResult.Rejected(ShopPurchaseOutcome.UnknownItem, itemId, Coins.Coins, 0);
+        }
+
+        if (Coins.Coins < price)
+        {
+            return ShopPurchaseResult.Rejected(ShopPurchaseOutcome.NotEnoughCoins, itemId, Coins.Coins, price);
+        }
+
+        if (Inventory.IsFull(itemId))
+        {
+            return ShopPurchaseResult.Rejected(ShopPurchaseOutcome.InventoryFull, itemId, Coins.Coins, price);
+        }
+
+        // 价格只认上面算出来的那一份（配置价）。CoinWallet 不再自己按 Id 查常量，
+        // 否则 config.json 改价后会出现"按 30 判断、按 50 扣款"这类错账。
+        if (!Coins.TrySpend(price))
+        {
+            // 理论上走不到（上面刚比对过），保底不扣钱。
+            return ShopPurchaseResult.Rejected(ShopPurchaseOutcome.NotEnoughCoins, itemId, Coins.Coins, price);
+        }
+
+        ItemGrantResult grant = Inventory.ClaimPurchase(itemId);
+
+        return new ShopPurchaseResult(
+            ShopPurchaseOutcome.Bought,
+            itemId,
+            price,
+            Coins.Coins,
+            grant.CountAfter,
+            null);
     }
+
+    /// <summary>商店里某个道具的当前售价（金币）。</summary>
+    public int ShopPriceOf(string itemId) => Inventory?.Config.ShopPriceOf(itemId) ?? 0;
 
     /// <summary>
     /// 冻结状态自愈：把已经到期的冻结折进 <see cref="ElapsedSeconds"/> 用的累计量。

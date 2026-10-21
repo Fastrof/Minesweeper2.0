@@ -29,7 +29,14 @@ internal static class TestFactory
 {
     public const int DefaultSeed = 20261008;
 
-    public static ItemConfig Config(int threshold = 20, int maxHold = 3, int initialGift = 0, int radius = 1)
+    /// <param name="magnifierWidth">放大镜范围宽（v1.4 起默认 2 = 2×2）。</param>
+    /// <param name="magnifierHeight">放大镜范围高。</param>
+    public static ItemConfig Config(
+        int threshold = 20,
+        int maxHold = 3,
+        int initialGift = 0,
+        int magnifierWidth = MagnifierItem.DefaultWidth,
+        int magnifierHeight = MagnifierItem.DefaultHeight)
         => new()
         {
             MagnifierThreshold = threshold,
@@ -37,7 +44,8 @@ internal static class TestFactory
             MagnifierInitialGift = initialGift,
             SonarInitialGift = initialGift,
             FreezeInitialGift = initialGift,
-            MagnifierRadius = radius,
+            MagnifierWidth = magnifierWidth,
+            MagnifierHeight = magnifierHeight,
         };
 
     public static ItemInventory Inventory(ItemConfig? config = null, PlayerProgress? progress = null)

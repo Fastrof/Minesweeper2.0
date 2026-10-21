@@ -9,22 +9,33 @@ namespace MineSweeper.Core.Items;
 /// 2. 不计入"已翻开" —— 不写 IsRevealed，因此不会触发洪水填充、不影响剩余雷数、
 ///    也不参与胜利判定。
 /// 3. 信息永久保留 —— 标记位一直留着，UI 一直按透视样式绘制。
+///
+/// v1.4：作用范围从 3×3 削弱为 **2×2**，且**被点中的格子是区域左上角**
+/// （点哪格就翻"它 + 右 + 下 + 右下"这 4 格）。贴边时按棋盘边界裁切，所以
+/// 最右一列/最下一行实际只翻得到 2 格。
 /// </summary>
 public sealed class MagnifierItem : IItem
 {
     /// <summary>持久化与配置里使用的稳定 Id。</summary>
     public const string ItemId = "magnifier";
 
-    /// <summary>默认透视半径：1 → 3×3。</summary>
+    /// <summary>默认作用范围：2×2（v1.4 起，原为 3×3）。</summary>
+    public const int DefaultWidth = 2;
+
+    /// <summary>默认作用范围的高：2×2。</summary>
+    public const int DefaultHeight = 2;
+
+    /// <summary>旧的"半径"默认值，保留给 <see cref="GetAffectedIndexes"/> 这类按半径取格的调用。</summary>
     public const int DefaultRadius = 1;
 
-    public MagnifierItem(int radius = DefaultRadius)
+    public MagnifierItem(int width = DefaultWidth, int height = DefaultHeight)
     {
-        Radius = Math.Clamp(radius, 0, 4);
+        Width = Math.Clamp(width, 1, 9);
+        Height = Math.Clamp(height, 1, 9);
     }
 
     public MagnifierItem(ItemConfig config)
-        : this(config?.MagnifierRadius ?? DefaultRadius)
+        : this(config?.MagnifierWidth ?? DefaultWidth, config?.MagnifierHeight ?? DefaultHeight)
     {
     }
 
@@ -34,8 +45,21 @@ public sealed class MagnifierItem : IItem
     /// <inheritdoc />
     public string DisplayName => "放大镜";
 
-    /// <summary>透视半径（1 即 3×3）。</summary>
-    public int Radius { get; }
+    /// <summary>作用区域的宽（格）。</summary>
+    public int Width { get; }
+
+    /// <summary>作用区域的高（格）。</summary>
+    public int Height { get; }
+
+    /// <summary>作用区域的形状（左上角锚点）。</summary>
+    public AreaShape Shape => AreaShape.TopLeft(Width, Height);
+
+    /// <summary>
+    /// 等价的"半径"表述，仅为兼容旧调用：形状不是正方形时返回 -1。
+    /// 新代码请直接用 <see cref="Shape"/> / <see cref="Width"/> / <see cref="Height"/>。
+    /// </summary>
+    [Obsolete("v1.4 起放大镜是矩形，请改用 Shape / Width / Height。")]
+    public int Radius => Width == Height ? (Width - 1) / 2 : -1;
 
     /// <inheritdoc />
     public ItemUseCheck Check(GameSession session, int targetIndex)
@@ -45,41 +69,20 @@ public sealed class MagnifierItem : IItem
     }
 
     /// <summary>
-    /// 计算中心格周围 radius 圈内的格索引（自动按棋盘边界裁切，不环绕、不补偿）。
+    /// 计算"以 <paramref name="centerIndex"/> 为中心、半径 <paramref name="radius"/> 的方形区域"。
+    /// 这是**声呐**仍在用的取格规则（3×3 居中），放大镜已不用它。
     /// </summary>
     public static IReadOnlyList<int> GetAffectedIndexes(Board board, int centerIndex, int radius)
-    {
-        ArgumentNullException.ThrowIfNull(board);
+        => AreaShape.Square(radius).IndexesAt(board, centerIndex);
 
-        var result = new List<int>();
-        if (!board.IsValidIndex(centerIndex))
-        {
-            return result;
-        }
-
-        int cx = board.XOf(centerIndex);
-        int cy = board.YOf(centerIndex);
-
-        int x0 = Math.Max(0, cx - radius);
-        int x1 = Math.Min(board.Width - 1, cx + radius);
-        int y0 = Math.Max(0, cy - radius);
-        int y1 = Math.Min(board.Height - 1, cy + radius);
-
-        for (int y = y0; y <= y1; y++)
-        {
-            for (int x = x0; x <= x1; x++)
-            {
-                result.Add(board.Index(x, y));
-            }
-        }
-
-        return result;
-    }
+    /// <summary>按形状取格（放大镜用 <see cref="Shape"/>，声呐用 <see cref="AreaShape.Square"/>）。</summary>
+    public static IReadOnlyList<int> GetAffectedIndexes(Board board, int centerIndex, AreaShape shape)
+        => shape.IndexesAt(board, centerIndex);
 
     /// <summary>目标区域是否已全部被透视过（§5.3：是的话禁止使用，且不消耗道具）。</summary>
-    public static bool AllAffectedAlreadyItemRevealed(Board board, int centerIndex, int radius)
+    public static bool AllAffectedAlreadyItemRevealed(Board board, int centerIndex, AreaShape shape)
     {
-        IReadOnlyList<int> affected = GetAffectedIndexes(board, centerIndex, radius);
+        IReadOnlyList<int> affected = GetAffectedIndexes(board, centerIndex, shape);
         if (affected.Count == 0)
         {
             return true;
@@ -95,6 +98,10 @@ public sealed class MagnifierItem : IItem
 
         return true;
     }
+
+    /// <summary>半径版本的兼容重载（声呐在用）。</summary>
+    public static bool AllAffectedAlreadyItemRevealed(Board board, int centerIndex, int radius)
+        => AllAffectedAlreadyItemRevealed(board, centerIndex, AreaShape.Square(radius));
 
     /// <summary>
     /// 只读地准备透视内容（不改棋盘状态），供 UI 做悬停预览。
@@ -117,7 +124,7 @@ public sealed class MagnifierItem : IItem
 
     private MagnifierReveal BuildReveal(Board board, int centerIndex, bool apply)
     {
-        IReadOnlyList<int> affected = GetAffectedIndexes(board, centerIndex, Radius);
+        IReadOnlyList<int> affected = Shape.IndexesAt(board, centerIndex);
         var cells = new List<MagnifierCellInfo>(affected.Count);
 
         int mines = 0;
@@ -147,6 +154,6 @@ public sealed class MagnifierItem : IItem
             cells.Add(new MagnifierCellInfo(index, isMine, board.GetAdjacentMines(index), wasAlready));
         }
 
-        return new MagnifierReveal(centerIndex, Radius, cells, mines, empty, newlyRevealed);
+        return new MagnifierReveal(centerIndex, Width, Height, cells, mines, empty, newlyRevealed);
     }
 }

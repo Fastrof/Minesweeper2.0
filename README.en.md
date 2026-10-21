@@ -12,9 +12,9 @@ A Windows Minesweeper written from scratch: **reproduce the classic game 100% fi
 
 | | |
 |---|---|
-| **Version** | `v1.3` |
+| **Version** | `v1.4` |
 | **Build** | `build.cmd` → **0 warnings, 0 errors** |
-| **Tests** | `test.cmd` → **329 / 329 passing** (~1 second) |
+| **Tests** | `test.cmd` → **360 / 360 passing** (~1 second) |
 | **Repository** | https://github.com/Fastrof/Minesweeper2.0 |
 | **Store** | [Microsoft Store](https://apps.microsoft.com/detail/9NKR2M2ZDDL3) |
 | **License** | For learning and discussion only |
@@ -34,13 +34,14 @@ Left click to reveal · right click cycles through three states (flag → questi
 ## What is new
 
 - **Level mode**: 6 chapters × 6 levels = **36 levels**. Every level is a fixed board, starred by completion time (★★★ / ★★ / ★), unlocked one after another. Clearing a level shows a settlement card, and an in-game "◀ Previous / Next ▶" lets you keep playing without going back to the level panel.
-- **Three items**: magnifier (reveals a 3×3 area), sonar scan (only reports *how many* mines are inside a 3×3 area), time freeze (pauses the countdown for 20 seconds). Every 20 mines you sweep earns one "pick one of three" supply drop.
+- **Three items**: magnifier (reveals a 2×2 area; the cell you click is the top-left corner), sonar scan (only reports *how many* mines are inside a 3×3 area), time freeze (pauses the countdown for 20 seconds). You start with two of each, and the hold limit is 9 per item.
 - **Adjustable themes**: a palette of 19 color keys, with several built-in color schemes.
 - **Code-synthesized sound effects**: reveal / flag / chord / explosion / victory / startup — six in total.
 - **Zoom, pan and far-zoom degradation**: up to **4096×4096** per game; 1,000,000 cells on screen measured at roughly **70 FPS**.
 - **Accessibility**: UI Automation support for the self-drawn board, so screen readers can read the board aloud.
 - **Achievements (v1.1)**: 31 achievements worth 1000 points across five categories, two of them hidden.
 - **Update check (v1.1)**: a silent check on startup plus a manual one in Settings, with optional **automatic download** of the installer. The Store build never checks (the Store handles updates).
+- **Coin shop (v1.4)**: a "🛒 Shop" entry in the top-right corner of the board, openable any time during a game. Each mine you sweep out earns **1 coin**; the magnifier costs **30** coins, the sonar scan **20** and the time freeze **20**. Coins and the items bought with them **last only for the current game** — both start at 0 on every game (and every level) and are cleared when you leave it.
 
 ## Quick start
 
@@ -50,7 +51,7 @@ cd Minesweeper2.0
 
 build.cmd     :: build the whole solution (x64), 0 warnings 0 errors
 run.cmd       :: launch the game
-test.cmd      :: run the Core unit tests (329 of them)
+test.cmd      :: run the Core unit tests (360 of them)
 ```
 
 The scripts probe `%ProgramFiles%\dotnet`, `%ProgramFiles(x86)%\dotnet`, `%DOTNET_ROOT%` and `D:\dotnet` in order, and fall back to whatever `dotnet` is on `PATH`. The equivalent manual commands:
@@ -93,11 +94,11 @@ src\MineSweeper.App\bin\x64\Debug\net10.0-windows10.0.19041.0\MineSweeper2.exe
 | `history.json` | Lifetime statistics (counted since the very first sweep) |
 | `achievements.json` | Achievements and points (v1.1) |
 | `updatestate.json` | Update-check state: last check time / last seen version / skipped version (v1.1) |
-| `config.json` | Item and board configuration (hand-editable, no rebuild required) |
+| `config.json` | Item and board configuration (hand-editable, no rebuild required); since v1.4 it carries `schemaVersion: 2`, the magnifier width/height and the shop price keys (`shop.*.price`) |
 | `app.log` | Diagnostic log |
 | `sounds\` | Sound effects synthesized on first run; **existing files are never overwritten** — drop in a same-named wav to replace one |
 
-Every save file is written **atomically**: if a file is corrupted it is backed up and rebuilt, and if its `schemaVersion` is newer than the app understands it is refused and the original file is left untouched.
+Every save file is written **atomically** (including the hand-editable `config.json`): if a file is corrupted it is backed up and rebuilt, and if its `schemaVersion` is newer than the app understands the original file is never overwritten (writes are refused).
 
 ## Project structure
 
@@ -112,29 +113,27 @@ src/
   MineSweeper.Core/         core logic: mine placement / flood fill / chord / levels / items / saves / themes / sound synthesis
   MineSweeper.App/          WinUI 3 shell: rendering, input, panels, about windows
 tests/
-  MineSweeper.Core.Tests/   162 xUnit test cases
+  MineSweeper.Core.Tests/   360 xUnit test cases (20 test files)
 ```
 
 > **Iron rule: never put game rules into the App layer.** The test is simple — "can this logic be tested without starting a UI?" If yes, it belongs in Core; Core may not reference `Windows.*` or `Microsoft.UI.*` at all.
 
 ## Tests
 
-**All 265 test cases pass.**
+**All 360 test cases pass** (20 test files, about one second; the per-file split comes from the `test.cmd` output).
 
-| File | Cases | Coverage |
-|---|---|---|
-| `LevelTests.cs` | 35 | Level-table gatekeeper, star ratings, unlocking, saves, clear detection, previous/next navigation |
-| `ThemeAndAudioTests.cs` | 23 | Theme palettes, loading/saving settings, sound synthesis |
-| `ItemTests.cs` | 17 | Item counts and grants |
-| `BoardGenerationTests.cs` | 15 | Mine placement and parameter boundaries |
-| `AdvancedFeatureTests.cs` | 14 | Locked boards, reveal fog, info panel |
-| `HistoryTests.cs` | 14 | History accumulation and corruption handling |
-| `RegressionTests.cs` | 13 | Regression fences for fixed defects |
-| `PersistenceTests.cs` | 11 | Saves and records (atomic writes / corruption / versions) |
-| `WinConditionTests.cs` | 7 | Win/loss detection + automatic flagging on a win |
-| `ChordTests.cs` | 5 | Chord detection and "a wrongly placed flag explodes" |
-| `FloodFillTests.cs` | 5 | Flood fill (including a 1000×1000 empty board without stack overflow) |
-| `NotificationTests.cs` | 3 | Notification levels and the "log only" dimension |
+Coverage (grouped by file):
+
+- `LevelTests.cs` — level-table gatekeeper, star ratings, unlocking, saves, previous/next navigation
+- `AchievementTests.cs` — achievement-catalog gatekeeper, rule boundaries, hidden achievements, monotonic progress
+- `UpdateTests.cs` / `UpdatePreferencesTests.cs` / `UpdateDownloadTests.cs` — version comparison, update frequency and pausing, package selection and SHA256 verification
+- `ThemeAndAudioTests.cs` / `UiThemeTests.cs` — palettes, sound synthesis, UI color themes and board contrast
+- `ItemTests.cs` / `AreaShapeAndCoinTests.cs` — items and coins, shop purchases, the magnifier's 2×2 area shape
+- `LocalizationTests.cs` — bilingual string-table completeness and runtime switching
+- `BoardGenerationTests.cs` / `FloodFillTests.cs` / `ChordTests.cs` / `WinConditionTests.cs` — mine placement, flood fill, chord, win/loss
+- `AdvancedFeatureTests.cs` / `LockedFirstClickTests.cs` — locked boards, reveal fog, info panel
+- `PersistenceTests.cs` / `HistoryTests.cs` — atomic writes, corruption fallback, records and history
+- `RegressionTests.cs` / `NotificationTests.cs` — regression fences for fixed defects and notification levels
 
 ---
 

@@ -29,8 +29,9 @@ public static class ItemUseCheckText
         ItemUseCheck.GameFinished => "本局已经结束。",
         ItemUseCheck.OutOfBounds => "目标区域超出棋盘范围。",
         ItemUseCheck.AllAlreadyRevealed => "该区域已经透视过了。",
-            ItemUseCheck.TimerNotRunning => "倒计时还没开始，冻结没有意义。",
+        ItemUseCheck.TimerNotRunning => "倒计时还没开始，冻结没有意义。",
             ItemUseCheck.AlreadyFrozen => "已经在冻结中，等它结束再用吧。",
+            ItemUseCheck.FloodPending => "上一片区域还在展开，请稍候。",
         _ => "无法使用。",
     };
 }

@@ -344,7 +344,7 @@ public sealed class UpdateTests
         var now = DateTimeOffset.Parse("2026-03-01T12:00:00Z", CultureInfo.InvariantCulture);
         var state = new UpdateState { LastCheckUtc = now.AddHours(-3) };
 
-        Assert.False(UpdateCheckPolicy.ShouldCheck(state, UpdateCheckTrigger.Startup, now, out string reason));
+        Assert.False(UpdateCheckPolicy.ShouldCheck(state, UpdateCheckTrigger.Startup, now, UpdateCheckPolicy.AutoInterval, out string reason));
         Assert.Contains("跳过", reason);
     }
 
@@ -352,20 +352,38 @@ public sealed class UpdateTests
     public void 启动检查超过间隔或从未检查时发起()
     {
         var now = DateTimeOffset.Parse("2026-03-01T12:00:00Z", CultureInfo.InvariantCulture);
+        TimeSpan interval = UpdateCheckPolicy.AutoInterval;
 
         var never = new UpdateState();
-        Assert.True(UpdateCheckPolicy.ShouldCheck(never, UpdateCheckTrigger.Startup, now, out _));
+        Assert.True(UpdateCheckPolicy.ShouldCheck(never, UpdateCheckTrigger.Startup, now, interval, out _));
 
         // 恰好满 24 小时：算作到期，应该查
         var exactly = new UpdateState { LastCheckUtc = now - UpdateCheckPolicy.AutoInterval };
-        Assert.True(UpdateCheckPolicy.ShouldCheck(exactly, UpdateCheckTrigger.Startup, now, out _));
+        Assert.True(UpdateCheckPolicy.ShouldCheck(exactly, UpdateCheckTrigger.Startup, now, interval, out _));
 
         var stale = new UpdateState { LastCheckUtc = now.AddDays(-30) };
-        Assert.True(UpdateCheckPolicy.ShouldCheck(stale, UpdateCheckTrigger.Startup, now, out _));
+        Assert.True(UpdateCheckPolicy.ShouldCheck(stale, UpdateCheckTrigger.Startup, now, interval, out _));
 
         // 系统时间被改小（上次检查"在未来"）时不要去打扰
         var future = new UpdateState { LastCheckUtc = now.AddDays(1) };
-        Assert.False(UpdateCheckPolicy.ShouldCheck(future, UpdateCheckTrigger.Startup, now, out _));
+        Assert.False(UpdateCheckPolicy.ShouldCheck(future, UpdateCheckTrigger.Startup, now, interval, out _));
+    }
+
+    /// <summary>
+    /// v1.4 修复：玩家把频率切成"每次启动"（0 小时）后不能再被固定的 24 小时拦住，
+    /// 否则设置里的档位形同虚设。间隔为 0 表示不做时间限制（只防系统时间倒流）。
+    /// </summary>
+    [Fact]
+    public void 每次启动档不做固定间隔限制()
+    {
+        var now = DateTimeOffset.Parse("2026-03-01T12:00:00Z", CultureInfo.InvariantCulture);
+        var state = new UpdateState { LastCheckUtc = now.AddMinutes(-1) };
+
+        Assert.True(UpdateCheckPolicy.ShouldCheck(state, UpdateCheckTrigger.Startup, now, TimeSpan.Zero, out _));
+
+        // 时间倒流仍按"刚查过"处理
+        var future = new UpdateState { LastCheckUtc = now.AddHours(2) };
+        Assert.False(UpdateCheckPolicy.ShouldCheck(future, UpdateCheckTrigger.Startup, now, TimeSpan.Zero, out _));
     }
 
     [Fact]
@@ -374,7 +392,7 @@ public sealed class UpdateTests
         var now = DateTimeOffset.Parse("2026-03-01T12:00:00Z", CultureInfo.InvariantCulture);
         var state = new UpdateState { LastCheckUtc = now.AddMinutes(-1) };
 
-        Assert.True(UpdateCheckPolicy.ShouldCheck(state, UpdateCheckTrigger.Manual, now, out string reason));
+        Assert.True(UpdateCheckPolicy.ShouldCheck(state, UpdateCheckTrigger.Manual, now, TimeSpan.Zero, out string reason));
         Assert.False(string.IsNullOrWhiteSpace(reason));
     }
 

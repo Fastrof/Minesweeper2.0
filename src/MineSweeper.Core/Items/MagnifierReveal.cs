@@ -7,15 +7,18 @@ public readonly record struct MagnifierCellInfo(
     byte AdjacentMines,
     bool WasAlreadyItemRevealed);
 
-/// <summary>一次透视的完整结果。UI 用它画高亮、写提示条（"已透视 9 格：雷 2 / 空 7"）。</summary>
+/// <summary>一次透视的完整结果。UI 用它画高亮、写提示条（"已透视 4 格：雷 2 / 空 2"）。</summary>
 public sealed record MagnifierReveal(
     int CenterIndex,
-    int Radius,
+    int Width,
+    int Height,
     IReadOnlyList<MagnifierCellInfo> Cells,
     int MineCount,
     int EmptyCount,
     int NewlyRevealedCount)
 {
+    /// <summary>作用区域的形状描述（如 <c>2×2</c>），文案与日志直接用。</summary>
+    public string ShapeText => $"{Width}×{Height}";
     /// <summary>实际覆盖的格数（贴边/角落会被裁切，角落只有 4 格、边缘 6 格）。</summary>
     public int AffectedCount => Cells.Count;
 

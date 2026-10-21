@@ -35,8 +35,11 @@ public sealed class PlayerProgress
     public int MagnifierGranted { get; set; }
 
     /// <summary>
-    /// 攒着还没领的"三选一"奖励次数（v0.6 新增）。
-    /// 纯新增字段且有默认值 0，所以老存档直接读得进来，不需要 +schemaVersion 迁移。
+    /// 【已废弃】攒着还没领的"三选一"奖励次数。
+    ///
+    /// v1.4 起奖励机制被金币商店取代，这个字段不再被读取。
+    /// **刻意保留**而不是删掉：老存档里还写着这个键，删掉字段会让它变成未知键，
+    /// 虽然能忽略、但会让"读进来再写回去"悄悄丢数据；留着并只做兼容是最稳的。
     /// </summary>
     [JsonPropertyName("pendingRewards")]
     public int PendingRewards { get; set; }

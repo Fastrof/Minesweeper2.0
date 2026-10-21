@@ -1,6 +1,7 @@
 using MineSweeper.Core;
 using MineSweeper.Core.Items;
 using MineSweeper.Core.Persistence;
+using MineSweeper.Core.Updates;
 using Xunit;
 
 namespace MineSweeper.Core.Tests;
@@ -261,7 +262,7 @@ public sealed class PersistenceTests
         Assert.False(BoardSnapshot.TryParseShareCode("乱写的字符串", out _, out _, out _, out _, out _, out _));
     }
 
-    /// <summary>道具配置的 JSON 键名就是文档里那四个点号键，方便手改调参（§5.7）。</summary>
+    /// <summary>道具配置的 JSON 键名就是文档里那些点号键，方便手改调参（§5.7）。</summary>
     [Fact]
     public void 道具配置键名与文档一致()
     {
@@ -269,6 +270,264 @@ public sealed class PersistenceTests
         Assert.Contains("item.magnifier.threshold", json);
         Assert.Contains("item.magnifier.maxHold", json);
         Assert.Contains("item.magnifier.initialGift", json);
-        Assert.Contains("item.magnifier.radius", json);
+
+        // v1.4：半径换成宽高（放大镜削弱成 2×2），并新增商店价格键
+        Assert.Contains("item.magnifier.width", json);
+        Assert.Contains("item.magnifier.height", json);
+        Assert.Contains("shop.magnifier.price", json);
+        Assert.Contains("shop.sonar.price", json);
+        Assert.Contains("shop.freeze.price", json);
+    }
+
+    // ------------------------------------------------------------ 版本过新：拒读 + 禁写
+    //
+    // 这批用例针对的是"只拒读、不禁写"留下的坑：Load 因为 schemaVersion 过新而拒读并
+    // 返回默认对象后，App 会拿着默认对象继续跑，关窗时照常 Save，于是更新版本写的存档
+    // 被这份默认值覆盖。所以每个 Store 都要验一遍：拒读之后再 Save，磁盘文件一个字节都不变。
+
+    [Fact]
+    public void 进度版本过新后保存被禁止()
+    {
+        string path = TestPaths.NewFile("progress.json");
+        const string future = """{ "schemaVersion": 99, "correctMineFlagsTotal": 500 }""";
+        File.WriteAllText(path, future);
+
+        var store = new ProgressStore(path);
+        ProgressLoadResult result = store.Load();
+
+        Assert.Equal(ProgressLoadStatus.RejectedVersionTooNew, result.Status);
+        Assert.True(store.SaveBlocked, "拒读时应当同时标记为禁止保存。");
+        Assert.NotNull(result.BackupPath);
+        Assert.True(File.Exists(result.BackupPath!));
+
+        // 模拟 App 用默认对象继续玩、关窗时照常保存
+        store.Save(result.Progress);
+
+        Assert.Equal(future, File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void 设置版本过新后保存被禁止()
+    {
+        string path = TestPaths.NewFile("settings.json");
+        const string future = """{ "schemaVersion": 99, "audioEnabled": false }""";
+        File.WriteAllText(path, future);
+
+        var store = new AppSettingsStore(path);
+        SettingsLoadResult result = store.Load();
+
+        Assert.Equal(SettingsLoadStatus.RejectedVersionTooNew, result.Status);
+        Assert.True(store.SaveBlocked, "拒读时应当同时标记为禁止保存。");
+        Assert.NotNull(result.BackupPath);
+        Assert.True(File.Exists(result.BackupPath!));
+
+        store.Save(result.Settings);
+
+        Assert.Equal(future, File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void 关卡进度版本过新后保存被禁止()
+    {
+        string path = TestPaths.NewFile("levelprogress.json");
+        const string future = """{ "schemaVersion": 99, "records": [] }""";
+        File.WriteAllText(path, future);
+
+        var store = new LevelProgressStore(path);
+        LevelProgressLoadResult result = store.Load();
+
+        Assert.Equal(LevelProgressLoadStatus.RejectedVersionTooNew, result.Status);
+        Assert.True(store.SaveBlocked, "拒读时应当同时标记为禁止保存。");
+        Assert.NotNull(result.BackupPath);
+        Assert.True(File.Exists(result.BackupPath!));
+
+        store.Save(result.Progress);
+
+        Assert.Equal(future, File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void 成就版本过新后保存被禁止()
+    {
+        string path = TestPaths.NewFile("achievements.json");
+        const string future = """{ "schemaVersion": 99, "records": [] }""";
+        File.WriteAllText(path, future);
+
+        var store = new AchievementStore(path);
+        AchievementLoadResult result = store.Load();
+
+        Assert.Equal(AchievementLoadStatus.RejectedVersionTooNew, result.Status);
+        Assert.True(store.SaveBlocked, "拒读时应当同时标记为禁止保存。");
+        Assert.NotNull(result.BackupPath);
+        Assert.True(File.Exists(result.BackupPath!));
+
+        store.Save(result.Progress);
+
+        Assert.Equal(future, File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void 更新状态版本过新后保存被禁止()
+    {
+        string path = TestPaths.NewFile("updatestate.json");
+        const string future = """{ "schemaVersion": 99, "skippedVersion": "9.9" }""";
+        File.WriteAllText(path, future);
+
+        var store = new UpdateStateStore(path);
+        UpdateStateLoadResult result = store.Load();
+
+        Assert.Equal(UpdateStateLoadStatus.RejectedVersionTooNew, result.Status);
+        Assert.True(store.SaveBlocked, "拒读时应当同时标记为禁止保存。");
+        Assert.NotNull(result.BackupPath);
+        Assert.True(File.Exists(result.BackupPath!));
+
+        store.Save(result.State);
+
+        Assert.Equal(future, File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void 历史版本过新后保存被禁止()
+    {
+        string path = TestPaths.NewFile("history.json");
+        const string future = """{ "schemaVersion": 99, "totalMinesSwept": 999 }""";
+        File.WriteAllText(path, future);
+
+        var store = new HistoryStore(path);
+        HistoryLoadResult result = store.Load();
+
+        Assert.Equal(HistoryLoadStatus.RejectedVersionTooNew, result.Status);
+        Assert.True(store.SaveBlocked, "拒读时应当同时标记为禁止保存。");
+        Assert.NotNull(result.BackupPath);
+        Assert.True(File.Exists(result.BackupPath!));
+
+        store.Save(result.History);
+
+        Assert.Equal(future, File.ReadAllText(path));
+    }
+
+    /// <summary>
+    /// records.json 没有 LoadStatus 返回值，"过新"以前被当成损坏处理；这条用例确认
+    /// 它也会记下"拒读过"，因此保存被禁、新版文件不被空记录覆盖。
+    /// </summary>
+    [Fact]
+    public void 记录版本过新后保存被禁止()
+    {
+        string path = TestPaths.NewFile("records.json");
+        const string future = """{ "schemaVersion": 99, "classic": { "beginner": { "seconds": 1 } } }""";
+        File.WriteAllText(path, future);
+
+        var store = new RecordsStore(path);
+        GameRecords records = store.Reload();
+
+        Assert.True(store.SaveBlocked, "版本过新被当作损坏降级时，也必须禁止保存。");
+        Assert.Empty(records.Classic);
+        Assert.NotEmpty(Directory.GetFiles(Path.GetDirectoryName(path)!, "records.corrupt.*.json"));
+
+        store.Save(records);
+
+        Assert.Equal(future, File.ReadAllText(path));
+    }
+
+    // ------------------------------------------------------------ config.json 的健壮性
+
+    /// <summary>文件不存在时创建默认配置并落盘，第一份文件就该带着当前版本号。</summary>
+    [Fact]
+    public void 道具配置不存在时创建默认并落盘()
+    {
+        string path = TestPaths.NewFile("config.json");
+
+        ItemConfig config = ItemConfigStore.Load(path);
+
+        Assert.Equal(ItemConfig.CurrentSchemaVersion, config.SchemaVersion);
+        Assert.True(File.Exists(path));
+
+        string json = File.ReadAllText(path);
+        Assert.Contains($"\"schemaVersion\": {ItemConfig.CurrentSchemaVersion}", json);
+        Assert.Contains("item.magnifier.maxHold", json);
+    }
+
+    /// <summary>v1 老配置：迁移后立即写回（否则每次启动都要重迁，且看不到新增的键）。</summary>
+    [Fact]
+    public void 旧版道具配置迁移后写回()
+    {
+        string path = TestPaths.NewFile("config.json");
+        File.WriteAllText(path, """
+            {
+              "schemaVersion": 1,
+              "item.magnifier.threshold": 20,
+              "item.magnifier.maxHold": 3,
+              "item.magnifier.initialGift": 1,
+              "item.magnifier.radius": 1
+            }
+            """);
+
+        ItemConfig config = ItemConfigStore.Load(path);
+
+        Assert.Equal(ItemConfig.CurrentSchemaVersion, config.SchemaVersion);
+        Assert.Equal(ItemConfig.DefaultMaxHold, config.MagnifierMaxHold);
+
+        // 迁移结果必须落盘：磁盘上是新版本号与提上去的持有上限
+        string json = File.ReadAllText(path);
+        Assert.Contains($"\"schemaVersion\": {ItemConfig.CurrentSchemaVersion}", json);
+        Assert.Contains($"\"item.magnifier.maxHold\": {ItemConfig.DefaultMaxHold}", json);
+    }
+
+    /// <summary>损坏的配置先备份成 config.corrupt.*.json，再重建一份默认配置。</summary>
+    [Fact]
+    public void 损坏的道具配置备份后降级默认()
+    {
+        string path = TestPaths.NewFile("config.json");
+        File.WriteAllText(path, "{ 这不是合法 JSON ");
+
+        ItemConfig config = ItemConfigStore.Load(path);
+
+        Assert.Equal(ItemConfig.CurrentSchemaVersion, config.SchemaVersion);
+
+        string[] backups = Directory.GetFiles(Path.GetDirectoryName(path)!, "config.corrupt.*.json");
+        Assert.Single(backups);
+        Assert.Contains("这不是合法 JSON", File.ReadAllText(backups[0]));
+
+        // 备份之后要重建默认配置：否则原文件一直坏着，每次启动都多一份 corrupt 备份
+        Assert.True(File.Exists(path));
+        Assert.Contains($"\"schemaVersion\": {ItemConfig.CurrentSchemaVersion}", File.ReadAllText(path));
+
+        // 重建后的文件应当是正常的：再读一次不再产生第二份备份
+        ItemConfig reloaded = ItemConfigStore.Load(path);
+        Assert.Equal(ItemConfig.CurrentSchemaVersion, reloaded.SchemaVersion);
+        Assert.Single(Directory.GetFiles(Path.GetDirectoryName(path)!, "config.corrupt.*.json"));
+    }
+
+    /// <summary>Save 走原子写：落盘成功后不能留下 .tmp 残留文件。</summary>
+    [Fact]
+    public void 道具配置保存后不留临时文件()
+    {
+        string path = TestPaths.NewFile("config.json");
+        ItemConfig config = ItemConfig.CreateDefault();
+        config.MagnifierMaxHold = 5;
+
+        ItemConfigStore.Save(config, path);
+
+        Assert.True(File.Exists(path));
+        Assert.False(File.Exists(path + ".tmp"), "原子写完成后不应残留 .tmp 文件。");
+        Assert.Contains("\"item.magnifier.maxHold\": 5", File.ReadAllText(path));
+    }
+
+    /// <summary>
+    /// 迁移后的写回失败（目录被占/磁盘不可写）只吞掉写文件异常，
+    /// 不能整体回默认：玩家手改的配置还在内存里，本次运行就该按它来。
+    /// 用"占住 .tmp 路径"来稳定制造写失败。
+    /// </summary>
+    [Fact]
+    public void 道具配置迁移写回失败时仍返回迁移结果()
+    {
+        string path = TestPaths.NewFile("config.json");
+        File.WriteAllText(path, """{ "schemaVersion": 1, "item.magnifier.maxHold": 3 }""");
+        Directory.CreateDirectory(path + ".tmp");
+
+        ItemConfig config = ItemConfigStore.Load(path);
+
+        Assert.Equal(ItemConfig.CurrentSchemaVersion, config.SchemaVersion);
+        Assert.Equal(ItemConfig.DefaultMaxHold, config.MagnifierMaxHold);
     }
 }

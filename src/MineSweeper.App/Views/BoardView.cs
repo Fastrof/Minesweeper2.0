@@ -671,7 +671,7 @@ public sealed class BoardView : UserControl
 
         // §4.5：只重绘受影响的矩形，不做全屏刷新
         InvalidateCells(reveal.Cells.Select(c => c.Index).ToArray());
-        InvalidateCellArea(index, _session.MagnifierRadius);
+        InvalidateCellShape(index, _session.MagnifierShape);
         BoardStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -1605,23 +1605,32 @@ public sealed class BoardView : UserControl
         }
     }
 
-    /// <summary>重绘以某格为中心、半径 radius 片区域（放大镜透视结果与高亮都用它）。</summary>
-    private void InvalidateCellArea(int centerIndex, int radius)
+    /// <summary>
+    /// 重绘"以某格为锚点、按形状覆盖"的那一片区域（放大镜透视结果与高亮都用它）。
+    ///
+    /// 用形状而不是半径：v1.4 的 2×2 是"点中的格子当左上角"，
+    /// 按半径居中算会漏掉右下角那一格，导致高亮框边上留残影。
+    /// </summary>
+    private void InvalidateCellShape(int anchorIndex, MineSweeper.Core.Items.AreaShape shape)
     {
-        if (_session is null || !_session.Board.IsValidIndex(centerIndex))
+        if (_session is null || !_session.Board.IsValidIndex(anchorIndex))
         {
             return;
         }
 
         Board board = _session.Board;
-        int x = board.XOf(centerIndex);
-        int y = board.YOf(centerIndex);
+        int x = board.XOf(anchorIndex);
+        int y = board.YOf(anchorIndex);
 
+        int x0 = x - shape.AnchorX;
+        int y0 = y - shape.AnchorY;
+
+        // 贴边时形状会被裁切，但至少要包含被点中的那一格
         InvalidateCellRange(
-            Math.Max(0, x - radius),
-            Math.Max(0, y - radius),
-            Math.Min(board.Width - 1, x + radius),
-            Math.Min(board.Height - 1, y + radius));
+            Math.Clamp(Math.Min(x0, x), 0, board.Width - 1),
+            Math.Clamp(Math.Min(y0, y), 0, board.Height - 1),
+            Math.Clamp(Math.Max(x0 + shape.Width - 1, x), 0, board.Width - 1),
+            Math.Clamp(Math.Max(y0 + shape.Height - 1, y), 0, board.Height - 1));
     }
 
     // ------------------------------------------------------------ 透视高亮的淡出
@@ -1665,7 +1674,7 @@ public sealed class BoardView : UserControl
             _highlightCenter = -1;
         }
 
-        InvalidateCellArea(center, _session?.MagnifierRadius ?? 1);
+        InvalidateCellShape(center, _session?.MagnifierShape ?? MineSweeper.Core.Items.AreaShape.TopLeft(2, 2));
         return stillActive;
     }
 

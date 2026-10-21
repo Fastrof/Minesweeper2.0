@@ -60,7 +60,6 @@ public partial class GameViewModel : ObservableObject
         SmileyGlyph = "🙂";
         StatusText = Strings.Get("status.ready");
         MagnifierCountText = "×0";
-        MagnifierProgressText = "0 / 20";
         SonarCountText = "×0";
         FreezeCountText = "×0";
         SeedText = "-";
@@ -91,10 +90,6 @@ public partial class GameViewModel : ObservableObject
     /// <summary>物品栏数量角标（§5.3）。</summary>
     [ObservableProperty]
     public partial string MagnifierCountText { get; set; }
-
-    /// <summary>道具进度条 13 / 20（§5.2）。</summary>
-    [ObservableProperty]
-    public partial string MagnifierProgressText { get; set; }
 
     /// <summary>声呐扫描持有量（物品栏第 2 格，v0.6）。</summary>
     [ObservableProperty]
@@ -235,8 +230,6 @@ public partial class GameViewModel : ObservableObject
         // 关卡模式读关卡自己的物品栏（数量由关卡给，不动账号库存）
         ItemInventory active = ActiveInventory;
         MagnifierCountText = $"×{active.MagnifierCount}";
-        // v0.6：关卡与普通共用账号物品栏，所以进度条文案也统一成"距离下一次补给还差几颗雷"
-        MagnifierProgressText = $"{active.CorrectFlagsTowardNext} / {active.RewardThreshold}";
 
         // 格子亮不亮只看"还有没有货 + 这局还能不能用道具"。
         // 不再因为"还没翻开第一格""计时没开始"就变灰 —— 那样玩家会以为道具根本没解锁；
@@ -260,8 +253,8 @@ public partial class GameViewModel : ObservableObject
             : session.Settings.Mode switch
             {
                 GameMode.ClassicPure => Strings.Get("mode.classicPure"),
-                GameMode.ClassicWithItems => "经典 + 道具",
-                _ => "自定义",
+                GameMode.ClassicWithItems => Strings.Get("mode.name.classicWithItems"),
+                _ => Strings.Get("mode.name.custom"),
             };
 
         SeedText = session.Seed.ToString();
@@ -272,13 +265,12 @@ public partial class GameViewModel : ObservableObject
                 ? Strings.Get("flow.winLevel", FormatSeconds(session.ElapsedSecondsInt))
                 : Strings.Get("flow.win", FormatSeconds(session.ElapsedSecondsInt)),
             GameStatus.Lost => IsLevelRun
-                ? "关卡失败 —— 同一关盘面固定，可重试"
+                ? Strings.Get(_currentLevel!.IsSecret ? "status.levelFailedRandom" : "status.levelFailed")
                 : Strings.Get("status.defeat"),
             GameStatus.InProgress => IsLevelRun
                 ? Strings.Get("mode.level", _currentLevel!.DisplayName)
-                : session.Settings.ItemsAvailable
-                    ? Strings.Get("mode.items", active.CorrectFlagsTowardNext, active.RewardThreshold)
-                    : Strings.Get("mode.classicWithItems"),
+                // v1.4：每 20 雷补给已取消，状态行改为显示本局金币（商店经济）
+                : Strings.Get("mode.coins", session.Coins.Coins),
             _ => session.Settings.ItemsAvailable
                 ? Strings.Get("status.readyHint")
                 : Strings.Get("status.readyHint"),

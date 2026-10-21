@@ -28,8 +28,10 @@ public sealed record GameSettings
     public bool FirstClickOpening { get; init; } = true;
 
     /// <summary>
-    /// 奖励机制：true = 每扫够阈值攒一次"三选一"（关卡模式，v0.6 新增）；
-    /// false = 老行为，跨阈值直接发一个放大镜（普通模式，保持原样）。
+    /// 【已废弃】v0.6 的"三选一补给"开关：true = 跨阈值攒一次奖励，false = 直接发放大镜。
+    ///
+    /// v1.4 起道具改由金币商店购买，这个字段没有读取方了。
+    /// 刻意保留而不是删除：测试与旧调用方还在传它，删掉会让"读配置再写回"类路径悄悄改变行为。
     /// </summary>
     public bool ChoiceRewards { get; set; }
 

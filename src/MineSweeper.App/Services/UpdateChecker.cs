@@ -71,8 +71,11 @@ internal sealed class UpdateChecker
     /// <summary>
     /// 是否该发起一次检查。<paramref name="trigger"/> 为 <see cref="UpdateCheckTrigger.Manual"/> 时永远 true
     /// （玩家点了按钮就必须真去查一次，不能被限流吃掉）。
+    ///
+    /// <paramref name="minInterval"/> 由调用方按玩家设置传入（"每次启动"档传 <see cref="TimeSpan.Zero"/>）：
+    /// 间隔只能有一个来源，否则设置里的频率会被这里的固定 24 小时悄悄拦住。
     /// </summary>
-    public bool TryStartCheck(UpdateCheckTrigger trigger, out string reason)
+    public bool TryStartCheck(UpdateCheckTrigger trigger, TimeSpan minInterval, out string reason)
     {
         if (!IsEnabled)
         {
@@ -86,7 +89,7 @@ internal sealed class UpdateChecker
             return false;
         }
 
-        return UpdateCheckPolicy.ShouldCheck(State, trigger, DateTimeOffset.UtcNow, out reason);
+        return UpdateCheckPolicy.ShouldCheck(State, trigger, DateTimeOffset.UtcNow, minInterval, out reason);
     }
 
     /// <summary>真正发一次请求。调用方负责把返回值切回 UI 线程。</summary>

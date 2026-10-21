@@ -1,5 +1,5 @@
 @echo off
-rem 启动游戏（unpackaged 版本，存档在程序目录 data\ 下）
+rem 启动游戏（unpackaged 版本，存档在 %LOCALAPPDATA%\MineSweeper2\，不再放程序目录）
 chcp 65001 >nul
 setlocal
 cd /d "%~dp0"

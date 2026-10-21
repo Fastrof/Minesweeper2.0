@@ -55,7 +55,7 @@ internal static class BoardRenderer
         Board board = session.Board;
         bool lost = session.Status == GameStatus.Lost;
         int exploded = session.ExplodedIndex ?? -1;
-        int radius = session.MagnifierRadius;
+        MineSweeper.Core.Items.AreaShape shape = session.MagnifierShape;
 
         if (viewport.IsFarZoom)
         {
@@ -75,7 +75,7 @@ internal static class BoardRenderer
 
         if (aiming && board.IsValidIndex(hoverIndex))
         {
-            DrawAreaOverlay(ds, board, hoverIndex, viewport, radius, theme.AimingRing, theme.AimingFill);
+            DrawAreaOverlay(ds, board, hoverIndex, viewport, shape, theme.AimingRing, theme.AimingFill);
         }
 
         // §5.4 的视觉反馈：透视结算后那一圈高亮在 1 秒内淡出（alpha 由 BoardView 逐帧给）
@@ -86,7 +86,7 @@ internal static class BoardRenderer
                 board,
                 highlightCenter,
                 viewport,
-                radius,
+                shape,
                 theme.HighlightRing,
                 theme.HighlightFill,
                 highlightAlpha);
@@ -579,15 +579,17 @@ internal static class BoardRenderer
     }
 
     /// <summary>
-    /// 把一个 (2×radius+1)² 的区域圈成高亮框（§5.3 的瞄准态、§5.4 的结算高亮共用）。
-    /// 半径跟随配置，所以将来把放大镜换成 5×5 时这里的框也会跟着变大。
+    /// 把一个"区域形状"圈成高亮框（§5.3 的瞄准态、§5.4 的结算高亮共用）。
+    ///
+    /// 参数是形状而不是半径：v1.4 起放大镜是 **2×2 且点中的格子是左上角**，
+    /// 按半径居中画会把框画偏一格。形状里自带锚点，画出来和实际翻开的格子一定对齐。
     /// </summary>
     private static void DrawAreaOverlay(
         CanvasDrawingSession ds,
         Board board,
         int centerIndex,
         in BoardViewport viewport,
-        int radius,
+        MineSweeper.Core.Items.AreaShape shape,
         Color ring,
         Color fill,
         float opacity = 1f)
@@ -595,10 +597,16 @@ internal static class BoardRenderer
         int cx = board.XOf(centerIndex);
         int cy = board.YOf(centerIndex);
 
-        int x0 = Math.Max(0, cx - radius);
-        int x1 = Math.Min(board.Width - 1, cx + radius);
-        int y0 = Math.Max(0, cy - radius);
-        int y1 = Math.Min(board.Height - 1, cy + radius);
+        int x0 = Math.Max(0, cx - shape.AnchorX);
+        int x1 = Math.Min(board.Width - 1, x0 + shape.Width - 1);
+        int y0 = Math.Max(0, cy - shape.AnchorY);
+        int y1 = Math.Min(board.Height - 1, y0 + shape.Height - 1);
+
+        // 贴边时要保证框至少覆盖被点中的那一格（锚点可能被裁掉）
+        x0 = Math.Min(x0, cx);
+        y0 = Math.Min(y0, cy);
+        x1 = Math.Max(x1, cx);
+        y1 = Math.Max(y1, cy);
 
         var rect = new Rect(
             viewport.OffsetX + (x0 * viewport.CellSize),

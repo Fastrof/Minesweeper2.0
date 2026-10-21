@@ -57,9 +57,23 @@ public sealed class ProgressStore
     /// <summary>progress.json 的完整路径。</summary>
     public string Path { get; }
 
+    /// <summary>
+    /// 本次 Load 是否因"版本过新"拒读过这个文件（此时 <see cref="Save"/> 被禁用）。
+    ///
+    /// 拒读本身只保证"不覆盖"，但如果 App 继续拿着返回的默认进度跑，关窗时照常 Save，
+    /// 更新版本写的存档还是会被这份默认值抹掉——所以拒读必须同时禁写。
+    /// </summary>
+    public bool SaveBlocked => _versionTooNew;
+
+    // Load 在 RejectedVersionTooNew 分支置位；下一个 Load 重新判定
+    private bool _versionTooNew;
+
     /// <summary>加载进度；任何异常情况都会降级为默认值 + 返回可展示的提示。</summary>
     public ProgressLoadResult Load()
     {
+        // 重新加载以本次读到的结果为准（文件可能已经被换回旧版本）
+        _versionTooNew = false;
+
         if (!File.Exists(Path))
         {
             PlayerProgress created = PlayerProgress.CreateDefault();
@@ -97,6 +111,9 @@ public sealed class ProgressStore
             string backup = MakeBackupPath("unsupported");
             TryCopy(Path, backup);
 
+            // 拒读之后还要禁写：否则 App 用默认进度继续跑，关窗时 Save 会把新版文件覆盖掉
+            _versionTooNew = true;
+
             // 刻意不覆盖原文件：这是更新版本写的存档，降级运行不应该把它毁掉
             return new ProgressLoadResult(
                 PlayerProgress.CreateDefault(),
@@ -113,6 +130,13 @@ public sealed class ProgressStore
     public void Save(PlayerProgress progress)
     {
         ArgumentNullException.ThrowIfNull(progress);
+
+        // 版本过新被拒读时禁止写盘：内存里的默认值只是本次运行的临时态，
+        // 写回磁盘会把更新版本的存档直接抹掉（见 SaveBlocked）
+        if (_versionTooNew)
+        {
+            return;
+        }
 
         AtomicFile.WriteAllText(Path, JsonSerializer.Serialize(progress, SerializerOptions));
     }

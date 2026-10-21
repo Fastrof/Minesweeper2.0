@@ -107,17 +107,12 @@
                 Grid.Column="4"
                 Orientation="Horizontal"
                 Spacing="6">
-                <StackPanel VerticalAlignment="Center" Spacing="2">
+                <StackPanel VerticalAlignment="Center">
                     <TextBlock
                         HorizontalAlignment="Center"
                         FontSize="11"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                         Text="物品栏" />
-                    <TextBlock
-                        HorizontalAlignment="Center"
-                        FontSize="11"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Text="{x:Bind ViewModel.MagnifierProgressText, Mode=OneWay}" />
                 </StackPanel>
 
                 <Border
@@ -130,7 +125,7 @@
                     CornerRadius="6"
                     RightTapped="OnMagnifierRightTapped"
                     Holding="OnMagnifierHolding"
-                    ToolTipService.ToolTip="右键点击使用放大镜：透视 3×3 区域（§5.3）">
+                    ToolTipService.ToolTip="右键点击使用放大镜：透视 2×2 区域（§5.3）">
                     <Grid>
                         <TextBlock
                             HorizontalAlignment="Center"
@@ -215,6 +210,41 @@
                 CornerRadius="6">
                 <Grid x:Name="BoardHost" />
             </Border>
+
+            <!--
+                商店入口（v1.4）：浮在棋盘右上角的浮层。
+                刻意**不占布局** —— 它是随时可点的辅助入口，不该因为多了个按钮就把棋盘挤小。
+            -->
+            <Grid Grid.Column="0">
+                <Border
+                    x:Name="ShopEntry"
+                    Margin="0,8,8,0"
+                    Padding="8,4"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Canvas.ZIndex="5"
+                    ToolTipService.ToolTip="打开道具商店：用本局赚到的金币换道具">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button
+                            x:Name="ShopButton"
+                            Padding="4,2"
+                            Click="OnShopClick"
+                            Content="🛒 商店"
+                            Background="Transparent"
+                            BorderThickness="0" />
+                        <TextBlock
+                            x:Name="CoinText"
+                            VerticalAlignment="Center"
+                            FontFamily="Consolas"
+                            FontWeight="SemiBold"
+                            Text="🪙 0" />
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <Border
                 x:Name="MagnifierPanel"
@@ -766,15 +796,19 @@ Text="列出瞄准/透视区域的坐标与内容，便于无障碍与截图分�
             </Border>
         </Border>
 
+        <!--
+            道具商店（v1.4）：扫雷过程中随时可以打开，用本局赚到的金币换道具。
+            金币与买到的道具都只在本局有效（每局 / 每关开始清零）。
+        -->
         <Border
-            x:Name="ItemChoiceOverlay"
+            x:Name="ShopOverlay"
             Grid.Row="0"
             Grid.RowSpan="4"
             Background="#99000000"
             Canvas.ZIndex="30"
             Visibility="Collapsed">
             <Border
-                Width="430"
+                Width="440"
                 Padding="20"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
@@ -784,33 +818,54 @@ Text="列出瞄准/透视区域的坐标与内容，便于无障碍与截图分�
                 CornerRadius="10">
                 <StackPanel Spacing="10">
                     <TextBlock
-                        x:Name="ItemChoiceTitle"
+                        x:Name="ShopTitle"
                         HorizontalAlignment="Center"
                         FontSize="18"
                         FontWeight="SemiBold"
-                        Text="攒到一次道具奖励" />
+                        Text="道具商店" />
+                    <Border
+                        Padding="10,6"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        CornerRadius="6">
+                        <StackPanel Spacing="2">
+                            <TextBlock
+                                x:Name="ShopCoins"
+                                HorizontalAlignment="Center"
+                                FontFamily="Consolas"
+                                FontSize="20"
+                                FontWeight="Bold"
+                                Text="🪙 0" />
+                            <TextBlock
+                                x:Name="ShopEarned"
+                                HorizontalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
                     <TextBlock
-                        x:Name="ItemChoiceHint"
+                        x:Name="ShopHint"
                         FontSize="12"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        TextWrapping="Wrap" />
+                        TextWrapping="Wrap"
+                        Text="扫出一颗雷得 1 金币。" />
                     <Button
-                        x:Name="ChoiceMagnifierButton"
+                        x:Name="ShopMagnifierButton"
                         HorizontalAlignment="Stretch"
-                        Click="OnItemChoiceMagnifier" />
+                        Click="OnShopBuyMagnifier" />
                     <Button
-                        x:Name="ChoiceSonarButton"
+                        x:Name="ShopSonarButton"
                         HorizontalAlignment="Stretch"
-                        Click="OnItemChoiceSonar" />
+                        Click="OnShopBuySonar" />
                     <Button
-                        x:Name="ChoiceFreezeButton"
+                        x:Name="ShopFreezeButton"
                         HorizontalAlignment="Stretch"
-                        Click="OnItemChoiceFreeze" />
-                    <TextBlock
-                        x:Name="ItemChoiceRemaining"
+                        Click="OnShopBuyFreeze" />
+                    <Button
+                        x:Name="ShopCloseButton"
+                        Margin="0,4,0,0"
                         HorizontalAlignment="Center"
-                        FontSize="12"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        Click="OnShopCloseClick"
+                        Content="继续扫雷" />
                 </StackPanel>
             </Border>
         </Border>

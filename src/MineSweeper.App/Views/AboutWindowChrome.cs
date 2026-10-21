@@ -10,8 +10,8 @@ namespace MineSweeper.App.Views;
 ///
 /// 目标就是 Windows 自己的"关于 Windows"（winver）对话框那种感觉：
 /// <list type="bullet">
-/// <item><b>尺寸固定</b>：本机 150% 缩放下实测 winver 是 536×521 物理像素，
-/// 换算成 357×347 DIP，就按这个来。</item>
+/// <item><b>尺寸固定</b>：本机 150% 缩放下实测 winver 的外框（GetWindowRect）是 550×528 物理像素，
+/// 换算成 367×352 DIP，就按这个来。</item>
 /// <item><b>不能拖动改大小、不能最大化、也不能最小化</b> —— winver 标题栏上只有关闭按钮。</item>
 /// </list>
 /// 因为尺寸是按 DIP 给的，所以在别的缩放比例下窗口的"观感大小"与 winver 保持一致。
@@ -24,11 +24,15 @@ internal static class AboutWindowChrome
     /// 实测 winver 在本机 150% 缩放下的外框（GetWindowRect）是 550×528 物理像素，
     /// DWM 可视边界是 536×521；两者的差就是窗口阴影内缩（14×7，和本工程主窗口完全一致）。
     /// 550/1.5 = 366.7、528/1.5 = 352，所以取 367×352 DIP —— 这样最终可视尺寸与 winver 一致。
+    ///
+    /// 注意这里存的是 <b>DIP</b>：运行时（<see cref="OnFirstActivated"/>）还要乘 DPI 才得到
+    /// <c>AppWindow.Resize</c> 需要的物理像素。以前这里误存了物理像素，150% 缩放下窗口会比
+    /// winver 大 1.5 倍。
     /// </summary>
-    public const int DesignWidth = 550;
+    public const int DesignWidth = 367;
 
     /// <summary>设计高度（DIP），对齐 winver。</summary>
-    public const int DesignHeight = 528;
+    public const int DesignHeight = 352;
 
     /// <summary>套用固定尺寸与"不可缩放"的窗口样式。</summary>
     public static void Apply(Window window, string title)

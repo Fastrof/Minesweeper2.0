@@ -81,9 +81,24 @@ public sealed class RecordsStore
     /// <summary>records.json 的完整路径。</summary>
     public string Path { get; }
 
+    /// <summary>
+    /// 本次 Load 是否因"版本过新"拒读过这个文件（此时 <see cref="Save"/> 被禁用）。
+    ///
+    /// records.json 没有 LoadStatus 返回值，"版本过新"以前被当作损坏处理（备份 + 空记录）。
+    /// 备份保留没错，但还必须同时禁写：App 拿着空记录继续打，关窗时 Save 会把更新版本
+    /// 写的 records.json 覆盖掉，那才是真的把玩家的最快纪录全丢了。
+    /// </summary>
+    public bool SaveBlocked => _versionTooNew;
+
+    // Load 在检测到 schemaVersion 过新时置位；下一个 Load 重新判定
+    private bool _versionTooNew;
+
     /// <summary>加载；文件不存在或损坏时返回空记录（并备份损坏文件）。</summary>
     public GameRecords Load()
     {
+        // 重新加载以本次读到的结果为准（文件可能已经被换回旧版本）
+        _versionTooNew = false;
+
         if (!File.Exists(Path))
         {
             return GameRecords.CreateDefault();
@@ -94,8 +109,16 @@ public sealed class RecordsStore
             string json = File.ReadAllText(Path, Encoding.UTF8);
             GameRecords? loaded = JsonSerializer.Deserialize<GameRecords>(json, SerializerOptions);
 
-            if (loaded is null || loaded.SchemaVersion > GameRecords.CurrentSchemaVersion)
+            if (loaded is null)
             {
+                BackupCorrupt();
+                return GameRecords.CreateDefault();
+            }
+
+            if (loaded.SchemaVersion > GameRecords.CurrentSchemaVersion)
+            {
+                // 过新也按损坏备份一份，但额外记住"拒读过"：这次进程内不再允许写盘
+                _versionTooNew = true;
                 BackupCorrupt();
                 return GameRecords.CreateDefault();
             }
@@ -127,6 +150,13 @@ public sealed class RecordsStore
     public void Save(GameRecords records)
     {
         ArgumentNullException.ThrowIfNull(records);
+
+        // 版本过新被拒读时禁止写盘：内存里的空记录只是本次运行的临时态，
+        // 写回磁盘会把更新版本的 records.json 直接抹掉（见 SaveBlocked）
+        if (_versionTooNew)
+        {
+            return;
+        }
 
         AtomicFile.WriteAllText(Path, JsonSerializer.Serialize(records, SerializerOptions));
     }

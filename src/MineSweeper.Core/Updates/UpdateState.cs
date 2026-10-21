@@ -52,16 +52,25 @@ public sealed class UpdateState
 /// </summary>
 public static class UpdateCheckPolicy
 {
-    /// <summary>自动检查的最小间隔：24 小时。手动检查不受它限制。</summary>
+    /// <summary>
+    /// 默认的自动检查最小间隔：24 小时。
+    /// <b>实际间隔以玩家在设置里选的档位为准</b>（调用 <see cref="ShouldCheck"/> 时传入）；
+    /// 这里保留 24 小时只是"没传间隔时的兜底值"，避免旧调用方拿到无限制行为。
+    /// </summary>
     public static TimeSpan AutoInterval { get; } = TimeSpan.FromHours(24);
 
     /// <summary>
     /// 现在要不要发起一次检查。
     /// <see cref="UpdateCheckTrigger.Manual"/> 永远为 true（玩家点了按钮就必须有反馈，哪怕只是"已是最新"）；
-    /// <see cref="UpdateCheckTrigger.Startup"/> 在距上次检查不足 <see cref="AutoInterval"/> 时为 false，
+    /// <see cref="UpdateCheckTrigger.Startup"/> 在距上次检查不足 <paramref name="minInterval"/> 时为 false，
     /// 从未检查过（<see cref="UpdateState.LastCheckUtc"/> 为 null）时为 true。
+    ///
+    /// <paramref name="minInterval"/> 由调用方按玩家设置传入：0（每次启动档）表示不做时间限制，
+    /// 其余档位传对应小时数。v1.2 引入"检查频率"后曾出现两层限流打架——
+    /// 启动逻辑按玩家档位放行、这里又固定按 24 小时拦一次，
+    /// 结果"每次启动"档在 24 小时内根本不生效。现在间隔只有一个来源。
     /// </summary>
-    public static bool ShouldCheck(UpdateState state, UpdateCheckTrigger trigger, DateTimeOffset nowUtc, out string reason)
+    public static bool ShouldCheck(UpdateState state, UpdateCheckTrigger trigger, DateTimeOffset nowUtc, TimeSpan minInterval, out string reason)
     {
         ArgumentNullException.ThrowIfNull(state);
 
@@ -80,13 +89,13 @@ public static class UpdateCheckPolicy
         TimeSpan elapsed = nowUtc - lastCheck;
 
         // elapsed 为负说明系统时间被改小了：当作"刚查过"，不去打扰玩家
-        if (elapsed < AutoInterval)
+        if (elapsed < minInterval)
         {
-            reason = MineSweeper.Core.Localization.Strings.Get("update.tooSoon", elapsed.TotalHours.ToString("F1"), AutoInterval.TotalHours.ToString("F0"));
+            reason = MineSweeper.Core.Localization.Strings.Get("update.tooSoon", elapsed.TotalHours.ToString("F1"), minInterval.TotalHours.ToString("F0"));
             return false;
         }
 
-        reason = MineSweeper.Core.Localization.Strings.Get("update.intervalElapsed", elapsed.TotalHours.ToString("F1"), AutoInterval.TotalHours.ToString("F0"));
+        reason = MineSweeper.Core.Localization.Strings.Get("update.intervalElapsed", elapsed.TotalHours.ToString("F1"), minInterval.TotalHours.ToString("F0"));
         return true;
     }
 

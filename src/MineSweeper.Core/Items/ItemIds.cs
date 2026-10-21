@@ -1,3 +1,5 @@
+using MineSweeper.Core.Localization;
+
 namespace MineSweeper.Core.Items;
 
 /// <summary>
@@ -14,24 +16,24 @@ public static class ItemIds
 
     public const string Freeze = "freeze";
 
-    /// <summary>全部道具（顺序 = 物品栏从左到右，也是"三选一"弹窗的顺序）。</summary>
+    /// <summary>全部道具（顺序 = 物品栏从左到右，也是商店里的商品顺序）。</summary>
     public static readonly IReadOnlyList<string> All = new[] { Magnifier, Sonar, Freeze };
 
-    /// <summary>道具显示名。</summary>
+    /// <summary>道具显示名（走语言表，中英切换后商店/Toast 不会出现中英混排）。</summary>
     public static string DisplayNameOf(string itemId) => itemId switch
     {
-        Magnifier => "放大镜",
-        Sonar => "声呐扫描",
-        Freeze => "时间冻结",
+        Magnifier => Strings.Get("item.magnifier"),
+        Sonar => Strings.Get("item.sonar"),
+        Freeze => Strings.Get("item.freeze"),
         _ => itemId,
     };
 
-    /// <summary>道具用途的一句话说明（"三选一"弹窗里给玩家看的）。</summary>
+    /// <summary>道具用途的一句话说明（同 DisplayNameOf，走语言表；商店 tooltip 直接显示）。</summary>
     public static string DescriptionOf(string itemId) => itemId switch
     {
-        Magnifier => "透视 3×3 区域，把格子直接翻开（不消耗本局步数）。",
-        Sonar => "选一个 3×3 区域，只告诉你里面有**几颗雷**，不告诉你位置。",
-        Freeze => "倒计时暂停 20 秒，计时门槛按暂停后的时间算。",
+        Magnifier => Strings.Get("item.magnifier.desc"),
+        Sonar => Strings.Get("item.sonar.desc"),
+        Freeze => Strings.Get("item.freeze.desc"),
         _ => string.Empty,
     };
 }

@@ -51,9 +51,23 @@ public sealed class AppSettingsStore
     /// <summary>settings.json 的完整路径。</summary>
     public string Path { get; }
 
+    /// <summary>
+    /// 本次 Load 是否因"版本过新"拒读过这个文件（此时 <see cref="Save"/> 被禁用）。
+    ///
+    /// 只做到"拒读"还不够：App 拿到默认设置后会继续跑，退出时照样 Save，
+    /// 更新版本写的文件还是会被这份默认值覆盖——所以拒读必须同时禁写。
+    /// </summary>
+    public bool SaveBlocked => _versionTooNew;
+
+    // Load 在 RejectedVersionTooNew 分支置位；下一个 Load 重新判定
+    private bool _versionTooNew;
+
     /// <summary>加载设置；任何异常情况都降级为默认值 + 返回可展示的提示。</summary>
     public SettingsLoadResult Load()
     {
+        // 重新加载以本次读到的结果为准（文件可能已经被换回旧版本）
+        _versionTooNew = false;
+
         if (!File.Exists(Path))
         {
             AppSettings created = AppSettings.CreateDefault();
@@ -91,6 +105,9 @@ public sealed class AppSettingsStore
             string backup = MakeBackupPath("unsupported");
             TryCopy(Path, backup);
 
+            // 拒读之后还要禁写：否则关窗时的 Save 会把新版文件覆盖掉
+            _versionTooNew = true;
+
             // 与 progress.json 一样：更新版本写的文件，降级运行不能毁掉
             return new SettingsLoadResult(
                 AppSettings.CreateDefault(),
@@ -108,6 +125,13 @@ public sealed class AppSettingsStore
     public void Save(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
+
+        // 版本过新被拒读时禁止写盘：内存里的默认设置只是本次运行的临时态，
+        // 写回磁盘会把更新版本的文件直接抹掉（见 SaveBlocked）
+        if (_versionTooNew)
+        {
+            return;
+        }
 
         settings.Normalize();
         AtomicFile.WriteAllText(Path, JsonSerializer.Serialize(settings, SerializerOptions));
