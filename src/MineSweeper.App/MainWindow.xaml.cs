@@ -207,6 +207,10 @@ public sealed partial class MainWindow : Window
         // 构造全部完成：从这里开始，设置控件的变更才是"玩家真的改了设置"
         _settingsReady = true;
 
+        // v1.4：跟随系统时，系统主题可能在运行中切换。控件会自己跟着变，
+        // 但窗口背景与棋盘底色是手绘的、只在 ApplyUiTheme 里算过一次，必须重新刷新。
+        RootGrid.ActualThemeChanged += (_, _) => OnSystemThemeChanged();
+
         // 窗口变宽变窄要重排关卡列表（列数跟着可用宽度走，见 ComputeLevelListColumns / LevelListColumns）。
         // 注意两点，否则会自己绕成死循环：
         //   ① 只在"跨过列数阈值"时才重建（记住上一次用的列数），不是每次尺寸变化都重建；
@@ -4807,11 +4811,6 @@ public sealed partial class MainWindow : Window
             SystemBackdrop = null;
         }
 
-        RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-            RootGrid.ActualTheme == ElementTheme.Dark
-                ? Windows.UI.Color.FromArgb(255, 0x20, 0x20, 0x20)
-                : Windows.UI.Color.FromArgb(255, 0xF3, 0xF3, 0xF3));
-
         if (UiThemeBox.Items.Count == 0)
         {
             foreach (UiThemeMode option in new[] { UiThemeMode.System, UiThemeMode.Light, UiThemeMode.Dark })
@@ -4833,9 +4832,28 @@ public sealed partial class MainWindow : Window
             }
         }
 
+        // 按当前实际主题刷新手绘背景、棋盘底色与已打开的关于窗口
+        ApplyThemeVisuals();
+
+        AppPaths.Log($"[UITHEME] 界面颜色模式={UiThemeCatalog.IdOf(mode)}（实际主题={RootGrid.ActualTheme}）");
+    }
+
+    /// <summary>
+    /// 按"当前实际主题"刷新一遍手绘背景、棋盘底色与已打开的两个关于窗口。
+    ///
+    /// 单独抽出来是因为<b>跟随系统</b>时系统主题可能在运行中切换：
+    /// `RootGrid.RequestedTheme = Default` 会让控件自己变，但这两处是手绘/自算的固定颜色，
+    /// 不重新算就会停留在启动时的颜色（浅色背景 + 深色控件之类）。
+    /// </summary>
+    private void ApplyThemeVisuals()
+    {
+        RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            RootGrid.ActualTheme == ElementTheme.Dark
+                ? Windows.UI.Color.FromArgb(255, 0x20, 0x20, 0x20)
+                : Windows.UI.Color.FromArgb(255, 0xF3, 0xF3, 0xF3));
+
         ApplyBoardTheme();
 
-        // 已经创建过的关于窗口也要跟着刷新（否则它们会停留在旧主题）。
         if (_aboutGameWindow is not null)
         {
             ApplyThemeToWindow(_aboutGameWindow);
@@ -4845,13 +4863,37 @@ public sealed partial class MainWindow : Window
         {
             ApplyThemeToWindow(_aboutAuthorsWindow);
         }
+    }
 
-        AppPaths.Log($"[UITHEME] 界面颜色模式={UiThemeCatalog.IdOf(mode)}（实际主题={RootGrid.ActualTheme}）");
+    /// <summary>跟随系统模式下，系统主题在运行中变化时刷新手绘颜色（显式浅色/深色不受影响）。</summary>
+    private void OnSystemThemeChanged()
+    {
+        // 自检强制模式（SAOLEI_UITHEME）只用于截图核对，不跟随系统
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SAOLEI_UITHEME")))
+        {
+            return;
+        }
+
+        if (UiThemeCatalog.Normalize(_storage.Settings.UiTheme) != UiThemeMode.System)
+        {
+            return;
+        }
+
+        AppPaths.Log($"[UITHEME] 系统主题变化 → 实际主题={RootGrid.ActualTheme}，重新计算背景与棋盘底色");
+        ApplyThemeVisuals();
     }
 
     private void OnUiThemeChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_settingsReady || UiThemeBox.SelectedItem is not ComboBoxItem { Tag: string id })
+        {
+            return;
+        }
+
+        // 自检强制模式（SAOLEI_UITHEME=light|dark|system）只用于截图核对：
+        // ApplyUiTheme 会把这个强制值同步到下拉框，若此时再走保存，就会把"临时截图主题"
+        // 永久写进玩家的 settings.json（注释承诺过"不改存档"）。
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SAOLEI_UITHEME")))
         {
             return;
         }

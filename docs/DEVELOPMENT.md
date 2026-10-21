@@ -1493,4 +1493,6 @@ git push -u origin main
 - **商店入口 / 标题 / ToolTip** 已接入中英双语；隐藏关的失败 / 开始提示不再说"同一关盘面固定"。
 - **`ItemUsed`** 现在覆盖三种道具（声呐 / 冻结 / 放大镜各自独立标记），成就判定正确。
 - **关卡面板**列数自适应修复（随窗口宽度在 3 列 ↔ 2 列之间切换）；两个「关于」窗口在 **150% DPI** 下不再偏大。
+- **界面颜色「跟随系统」**：以前只在启动时算一次窗口背景与棋盘底色，运行中切换 Windows 深浅色会"控件变了、背景没变"；现在订阅 `RootGrid.ActualThemeChanged` 实时刷新（显式浅色/深色不受影响）。
+- **自检不再污染主题设置**：`SAOLEI_UITHEME=light|dark|system` 只用于截图核对，`OnUiThemeChanged` 在强制模式下不再写 `settings.json`（否则自检时打开设置/切语言可能把临时主题永久保存）。
 - **实测**：`dotnet build MineSweeper2.sln -p:Platform=x64` → **0 警告 0 错误**；`dotnet test` → **360 / 360 通过、0 失败**。
