@@ -11,38 +11,53 @@
         Padding="14"
         VerticalScrollBarVisibility="Auto">
         <StackPanel Spacing="14">
-            <!-- 主开发（头像本身是彩蛋 2 的触发点） -->
-            <StackPanel Orientation="Horizontal" Spacing="12">
-                <Grid Width="60" Height="60">
-                    <Border
-                        x:Name="PrimaryAvatarHost"
-                        Width="60"
-                        Height="60"
-                        CornerRadius="30"
-                        Tapped="OnPrimaryAvatarTapped">
-                        <Border.Background>
-                            <ImageBrush x:Name="PrimaryAvatarBrush" Stretch="UniformToFill" />
-                        </Border.Background>
-                    </Border>
-                    <TextBlock
-                        x:Name="PrimaryAvatarEggGlyph"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        FontSize="26"
-                        IsHitTestVisible="False"
-                        Text="😎"
-                        Visibility="Collapsed" />
-                </Grid>
-                <StackPanel VerticalAlignment="Center" Spacing="2">
-                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="Fastrof" />
-                    <TextBlock FontSize="12" Text="主开发 · Main Developer" />
-                    <TextBlock
-                        FontSize="11"
-                        Opacity="0.7"
-                        Text="核心引擎 · 渲染 · 关卡制 · 无障碍"
-                        TextWrapping="Wrap" />
+            <!-- 主开发（头像本身是彩蛋 2 的触发点）；右侧是 Windows 平台图标（v1.5.1） -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
+                    <Grid Width="60" Height="60">
+                        <Border
+                            x:Name="PrimaryAvatarHost"
+                            Width="60"
+                            Height="60"
+                            CornerRadius="30"
+                            Tapped="OnPrimaryAvatarTapped">
+                            <Border.Background>
+                                <ImageBrush x:Name="PrimaryAvatarBrush" Stretch="UniformToFill" />
+                            </Border.Background>
+                        </Border>
+                        <TextBlock
+                            x:Name="PrimaryAvatarEggGlyph"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontSize="26"
+                            IsHitTestVisible="False"
+                            Text="😎"
+                            Visibility="Collapsed" />
+                    </Grid>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock FontSize="17" FontWeight="SemiBold" Text="Fastrof" />
+                        <TextBlock FontSize="12" Text="主开发 · Main Developer" />
+                        <TextBlock
+                            FontSize="11"
+                            Opacity="0.7"
+                            Text="核心引擎 · 渲染 · 关卡制 · 无障碍"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
                 </StackPanel>
-            </StackPanel>
+                <Image
+                    x:Name="WindowsImage"
+                    Grid.Column="1"
+                    Width="96"
+                    Height="96"
+                    Margin="12,0,2,0"
+                    VerticalAlignment="Top"
+                    Stretch="Uniform"
+                    AutomationProperties.Name="Windows" />
+            </Grid>
 
             <!-- 彩蛋 2 的奖励内容：默认不可见 -->
             <Border
@@ -63,37 +78,53 @@
                 </StackPanel>
             </Border>
 
-            <StackPanel Orientation="Horizontal" Spacing="12">
-                <Grid Width="60" Height="60">
-                    <Border
-                        x:Name="SecondaryAvatarHost"
-                        Width="60"
-                        Height="60"
-                        CornerRadius="30"
-                        Tapped="OnSecondaryAvatarTapped">
-                        <Border.Background>
-                            <ImageBrush x:Name="SecondaryAvatarBrush" Stretch="UniformToFill" />
-                        </Border.Background>
-                    </Border>
-                    <TextBlock
-                        x:Name="SecondaryAvatarEggGlyph"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        FontSize="26"
-                        IsHitTestVisible="False"
-                        Text="🐛"
-                        Visibility="Collapsed" />
-                </Grid>
-                <StackPanel VerticalAlignment="Center" Spacing="2">
-                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="Shinichi" />
-                    <TextBlock FontSize="12" Text="开发 · Developer" />
-                    <TextBlock
-                        FontSize="11"
-                        Opacity="0.7"
-                        Text="关于页面开发和UI优化"
-                        TextWrapping="Wrap" />
+            <!-- Shinichi；右侧是 Linux/Tux 图标（v1.5.1） -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
+                    <Grid Width="60" Height="60">
+                        <Border
+                            x:Name="SecondaryAvatarHost"
+                            Width="60"
+                            Height="60"
+                            CornerRadius="30"
+                            Tapped="OnSecondaryAvatarTapped">
+                            <Border.Background>
+                                <ImageBrush x:Name="SecondaryAvatarBrush" Stretch="UniformToFill" />
+                            </Border.Background>
+                        </Border>
+                        <TextBlock
+                            x:Name="SecondaryAvatarEggGlyph"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontSize="26"
+                            IsHitTestVisible="False"
+                            Text="🐛"
+                            Visibility="Collapsed" />
+                    </Grid>
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock FontSize="17" FontWeight="SemiBold" Text="Shinichi" />
+                        <TextBlock FontSize="12" Text="开发 · Developer" />
+                        <TextBlock
+                            FontSize="11"
+                            Opacity="0.7"
+                            Text="关于页面开发和UI优化"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
                 </StackPanel>
-            </StackPanel>
+                <Image
+                    x:Name="LinuxImage"
+                    Grid.Column="1"
+                    Width="96"
+                    Height="96"
+                    Margin="12,0,2,0"
+                    VerticalAlignment="Top"
+                    Stretch="Uniform"
+                    AutomationProperties.Name="Linux" />
+            </Grid>
 
             <!-- Shinichi 的大彩蛋：默认不可见 -->
             <Border

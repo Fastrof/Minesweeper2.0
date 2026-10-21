@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using MineSweeper.Core.Localization;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -60,6 +61,8 @@ public sealed partial class AboutAuthorsWindow : Window
         LoadAvatar(PrimaryAvatarBrush, "Fastrof.png");
         LoadAvatar(SecondaryAvatarBrush, "Shinichi.png");
         LoadAvatar(ContributorAvatarBrush, "LLJ99999.png");
+        LoadAboutImage(WindowsImage, "Windows.png");
+        LoadAboutImage(LinuxImage, "Linux.png");
     }
 
     private void LoadContent()
@@ -89,6 +92,29 @@ public sealed partial class AboutAuthorsWindow : Window
         catch (Exception ex)
         {
             AppPaths.Log($"作者头像加载失败（{fileName}）：{ex.GetType().Name}：{ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 关于作者右侧的平台图标（v1.5.1）：同样用文件路径加载，兼容 unpackaged。
+    /// 图片已去白底并缩到 256×256（见 Assets/About）。
+    /// </summary>
+    private static void LoadAboutImage(Image target, string fileName)
+    {
+        try
+        {
+            string path = System.IO.Path.Combine(AppPaths.AssetsDirectory, "About", fileName);
+            if (!System.IO.File.Exists(path))
+            {
+                AppPaths.Log($"关于作者图标缺失：{path}");
+                return;
+            }
+
+            target.Source = new BitmapImage(new Uri(path));
+        }
+        catch (Exception ex)
+        {
+            AppPaths.Log($"关于作者图标加载失败（{fileName}）：{ex.GetType().Name}：{ex.Message}");
         }
     }
 

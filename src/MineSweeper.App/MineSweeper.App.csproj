@@ -75,6 +75,13 @@
     <Content Include="Assets\Authors\LLJ99999.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- 关于作者的平台图标（v1.5.1：Fastrof 行右侧 Windows、Shinichi 行右侧 Linux/Tux；已去白底缩到 256×256） -->
+    <Content Include="Assets\About\Windows.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\About\Linux.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>
