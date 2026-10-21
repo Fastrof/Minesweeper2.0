@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using System.Diagnostics;
 using MineSweeper.Core;
 using MineSweeper.Core.Solver;
@@ -237,6 +237,27 @@ public sealed class NoGuessTests
         session.Reveal(40);
         Assert.False(session.Board.NoGuessRequested);
         Assert.False(session.Board.NoGuessGuaranteed);
+    }
+
+    /// <summary>v1.5 提示：FindHint 保持纯查询；是否采用由调用方 MarkHintUsed 标记（提示局不计记录）。</summary>
+    [Fact]
+    public void 提示_使用后标记UsedHint且不影响盘面()
+    {
+        GameSession session = NewSession(9, 9, 10, 123, GameSettings.Custom);
+        session.Reveal(40);
+
+        int revealed = session.Board.CountRevealed();
+        int hint = session.FindHint();
+        Assert.Equal(revealed, session.Board.CountRevealed());
+        Assert.False(session.UsedHint, "FindHint 本身不应改变 UsedHint。");
+
+        if (hint >= 0)
+        {
+            Assert.False(session.Board.IsMine(hint));
+        }
+
+        session.MarkHintUsed();
+        Assert.True(session.UsedHint);
     }
 
     [Fact]

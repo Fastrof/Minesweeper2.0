@@ -50,6 +50,8 @@ internal static class BoardRenderer
         bool aiming,
         int highlightCenter,
         float highlightAlpha,
+        int hintCenter,
+        float hintAlpha,
         bool heatmap)
     {
         Board board = session.Board;
@@ -90,6 +92,20 @@ internal static class BoardRenderer
                 theme.HighlightRing,
                 theme.HighlightFill,
                 highlightAlpha);
+        }
+
+        // v1.5 提示：金色单格高亮（2 秒淡出，由 BoardView 逐帧给 alpha）。只做视觉提示。
+        if (hintAlpha > 0f && board.IsValidIndex(hintCenter))
+        {
+            DrawAreaOverlay(
+                ds,
+                board,
+                hintCenter,
+                viewport,
+                MineSweeper.Core.Items.AreaShape.TopLeft(1, 1),
+                Color.FromArgb(255, 0xFF, 0xC1, 0x07),
+                Color.FromArgb(0x40, 0xFF, 0xC1, 0x07),
+                hintAlpha);
         }
 
     }

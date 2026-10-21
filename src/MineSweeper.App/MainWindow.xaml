@@ -34,6 +34,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <Border
@@ -194,6 +195,18 @@
                     </Grid>
                 </Border>
             </StackPanel>
+
+            <!-- v1.5 提示：只在普通/自定义局（且不是无猜局）显示；本局不计最快记录。 -->
+            <Button
+                x:Name="HintButton"
+                Grid.Column="5"
+                Height="44"
+                Padding="10,4"
+                VerticalAlignment="Center"
+                Click="OnHintClick"
+                Content="💡 提示"
+                Visibility="Collapsed"
+                ToolTipService.ToolTip="提示：高亮一个确定安全的格子（本局不计最快记录）" />
         </Grid>
 
         <!-- §1.4 方案 A：单一 Win2D 渲染路径。右侧是 §5.6 的"放大镜信息面板" -->
@@ -408,11 +421,13 @@ Text="列出瞄准/透视区域的坐标与内容，便于无障碍与截图分�
                         <ToggleSwitch
                             x:Name="FirstClickOpeningSwitch"
                             Header="首点扩展安全区（5×5，手感更接近现代复刻）"
-                            IsOn="True" />
+                            IsOn="True"
+                            Toggled="OnFirstClickOpeningToggled" />
                         <ToggleSwitch
                             x:Name="PauseTimerSwitch"
                             Header="窗口失焦时暂停计时"
-                            IsOn="False" />
+                            IsOn="False"
+                            Toggled="OnPauseTimerToggled" />
                         <ToggleSwitch
                             x:Name="NoGuessSwitch"
                             Header="无猜模式（保证全程可纯逻辑推理，不用赌运气）"

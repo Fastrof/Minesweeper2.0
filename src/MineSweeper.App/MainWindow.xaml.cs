@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Dispatching;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -345,7 +345,9 @@ public sealed partial class MainWindow : Window
             VolumeSlider.Value = Math.Round(settings.AudioVolume * 100);
             _sound.Apply(settings.AudioEnabled, settings.AudioVolume);
 
-            // v1.5：无猜开关持久化（旧 settings.json 没有这个键时默认关闭）
+            // v1.5：三个游戏开关都持久化（旧 settings.json 缺字段时用默认值）
+            FirstClickOpeningSwitch.IsOn = settings.FirstClickOpening;
+            PauseTimerSwitch.IsOn = settings.PauseTimerOnFocusLoss;
             NoGuessSwitch.IsOn = settings.NoGuess;
 
             int index = IndexOfTheme(settings.ThemeId);
@@ -431,6 +433,78 @@ public sealed partial class MainWindow : Window
             Strings.Get("noguess.settings.title"),
             Strings.Get(NoGuessSwitch.IsOn ? "noguess.settings.on" : "noguess.settings.off"),
             "settings.noguess"));
+    }
+
+    /// <summary>首点扩展安全区开关（v1.5 起持久化）。</summary>
+    private void OnFirstClickOpeningToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_settingsReady)
+        {
+            return;
+        }
+
+        _storage.Settings.FirstClickOpening = FirstClickOpeningSwitch.IsOn;
+        SaveSettings();
+    }
+
+    /// <summary>失焦暂停开关（v1.5 起持久化）。</summary>
+    private void OnPauseTimerToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_settingsReady)
+        {
+            return;
+        }
+
+        _storage.Settings.PauseTimerOnFocusLoss = PauseTimerSwitch.IsOn;
+        SaveSettings();
+    }
+
+    /// <summary>
+    /// v1.5 提示：把 FindHint 推出的一个安全格高亮 2 秒（不自动翻开），并标记本局不计最快记录。
+    /// 提示只在普通/自定义局、且不是无猜局时可用。
+    /// </summary>
+    private void OnHintClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.Session is not { } session || session.IsFinished)
+        {
+            return;
+        }
+
+        int hint = session.FindHint();
+        if (hint < 0)
+        {
+            AppPaths.Log("[HINT] 当前局面推不出安全格。");
+            _notifier.Publish(GameNotification.QuietInfo(
+                Strings.Get("hint.none.title"),
+                Strings.Get("hint.none.body"),
+                "hint.none"));
+            return;
+        }
+
+        session.MarkHintUsed();
+        _board.ShowHint(hint);
+
+        int row = session.Board.YOf(hint) + 1;
+        int col = session.Board.XOf(hint) + 1;
+        AppPaths.Log($"[HINT] 提示安全格（第 {row} 行第 {col} 列）；本局不计最快记录。");
+
+        _notifier.Publish(GameNotification.Info(
+            Strings.Get("hint.found.title"),
+            Strings.Get("hint.found.body", row, col),
+            "hint.found"));
+
+        UpdateHintButton();
+    }
+
+    /// <summary>提示按钮只在普通/自定义、未结束、且不是无猜局时显示（v1.5）。</summary>
+    private void UpdateHintButton()
+    {
+        bool show = ViewModel.Session is { } session
+            && !ViewModel.IsLevelRun
+            && !session.Settings.NoGuess
+            && !session.IsFinished;
+
+        HintButton.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnVolumeChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
@@ -529,6 +603,7 @@ public sealed partial class MainWindow : Window
 
         _board.AttachSession(ViewModel.Session);
         UpdateMagnifierSlot();
+        UpdateHintButton();
         OnMagnifierPreviewChanged(this, EventArgs.Empty);
     }
 
@@ -593,6 +668,7 @@ public sealed partial class MainWindow : Window
 
         // §5.4 的透视高亮靠这里逐帧衰减，动画才动得起来（内部自己负责失效重绘）
         _board.AdvanceHighlight();
+        _board.AdvanceHint();   // v1.5 提示高亮（2 秒淡出）
 
         // §5.4 备选：透视信息到期后恢复迷雾（默认永久保留，配 config.json 才生效）
         if (ViewModel.Session?.ExpireItemReveals() == true)
@@ -708,6 +784,7 @@ public sealed partial class MainWindow : Window
         }
         ViewModel.Refresh();
         UpdateMagnifierSlot();
+        UpdateHintButton();
 
         // 扫出一颗雷 = +1 金币：立刻刷新右上角的金币显示（商店开着时按钮可用性也同步刷新）
         UpdateCoinDisplay();
@@ -1169,6 +1246,10 @@ public sealed partial class MainWindow : Window
         ShopButton.Content = Strings.Get("shop.entry");
         ToolTipService.SetToolTip(ShopEntry, Strings.Get("shop.entryTip"));
         ShopTitle.Text = Strings.Get("shop.title");
+
+        // v1.5 提示按钮（XAML 里是中文初值；同样显式覆盖，保证切换语言即时生效）
+        HintButton.Content = Strings.Get("hint.button");
+        ToolTipService.SetToolTip(HintButton, Strings.Get("hint.tooltip"));
 
         AppPaths.Log($"[LANG] 界面语言={Strings.CurrentCode}（{LanguageCatalog.Resolve(Strings.CurrentCode).ChineseName}）");
     }

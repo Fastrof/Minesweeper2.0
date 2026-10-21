@@ -173,7 +173,7 @@ internal static class RenderPerfProbe
         using (CanvasDrawingSession warmup = target.CreateDrawingSession())
         {
             warmup.Clear(Color.FromArgb(0xFF, 0x20, 0x20, 0x22));
-            BoardRenderer.Draw(warmup, resourceCreator, theme, session, viewport, -1, false, -1, 0f, heatmap);
+            BoardRenderer.Draw(warmup, resourceCreator, theme, session, viewport, -1, false, -1, 0f, -1, 0f, heatmap);
         }
 
         var sw = Stopwatch.StartNew();
@@ -181,7 +181,7 @@ internal static class RenderPerfProbe
         {
             using CanvasDrawingSession ds = target.CreateDrawingSession();
             ds.Clear(Color.FromArgb(0xFF, 0x20, 0x20, 0x22));
-            BoardRenderer.Draw(ds, resourceCreator, theme, session, viewport, -1, false, -1, 0f, heatmap);
+            BoardRenderer.Draw(ds, resourceCreator, theme, session, viewport, -1, false, -1, 0f, -1, 0f, heatmap);
         }
 
         sw.Stop();

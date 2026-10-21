@@ -128,6 +128,15 @@ public sealed class GameSession
     /// <summary>本局是否用过时间冻结（成就判定用）。</summary>
     public bool UsedFreeze { get; private set; }
 
+    /// <summary>本局是否用过提示（v1.5）。提示局不计最快记录。</summary>
+    public bool UsedHint { get; private set; }
+
+    /// <summary>
+    /// 标记本局用过提示。<see cref="FindHint"/> 保持纯查询（不偷看、不改盘面），
+    /// 由调用方在决定采用提示后显式标记。
+    /// </summary>
+    public void MarkHintUsed() => UsedHint = true;
+
     /// <summary>剩余雷数 = 总雷数 − 已插旗数（§0 第 5 条）。</summary>
     public int RemainingMines => Board.MineCount - FlagCount;
 

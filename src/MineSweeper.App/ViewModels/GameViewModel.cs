@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MineSweeper.App.Services;
@@ -358,6 +358,20 @@ public partial class GameViewModel : ObservableObject
                 "练习局 · 不计最快记录",
                 Strings.Get("flow.practiceTime", Session.ElapsedSeconds.ToString("F1")),
                 "record.practice"));
+            return;
+        }
+
+        // v1.5：无猜局 / 用过提示的局属于"辅助局"，与练习局同样不计最快记录，
+        // 否则一键提示或保证可推的盘会把普通榜刷得没有可比性。
+        if (Session.Settings.NoGuess || Session.UsedHint)
+        {
+            _recordSubmitted = true;
+            _notifier.Publish(GameNotification.QuietInfo(
+                Strings.Get("record.assist.title"),
+                Strings.Get(
+                    Session.Settings.NoGuess ? "record.noGuess.body" : "record.hint.body",
+                    Session.ElapsedSeconds.ToString("F1")),
+                "record.assist"));
             return;
         }
 

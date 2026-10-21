@@ -275,6 +275,21 @@ public sealed class ThemeAndAudioTests
         Assert.Equal(AppSettings.CurrentSchemaVersion, result.Settings.SchemaVersion);
     }
 
+    /// <summary>v1.5：旧设置缺两个游戏开关字段时，用与旧 XAML 一致的默认值（扩展开、失焦暂停关）。</summary>
+    [Fact]
+    public void 旧设置缺少游戏开关字段时用默认值()
+    {
+        string path = TestPaths.NewFile("settings.json");
+        File.WriteAllText(path, """{ "schemaVersion": 2, "audioEnabled": true }""");
+
+        SettingsLoadResult result = new AppSettingsStore(path).Load();
+
+        Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
+        Assert.True(result.Settings.FirstClickOpening);
+        Assert.False(result.Settings.PauseTimerOnFocusLoss);
+        Assert.Equal(AppSettings.CurrentSchemaVersion, result.Settings.SchemaVersion);
+    }
+
     [Fact]
     public void 损坏的设置降级重建并保留备份()
     {

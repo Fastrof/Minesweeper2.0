@@ -76,6 +76,9 @@ public sealed class BoardView : UserControl
     /// <summary>透视高亮淡出时长（§5.4：结算瞬间画一圈高亮、1 秒淡出）。</summary>
     private static readonly TimeSpan HighlightDuration = TimeSpan.FromSeconds(1);
 
+    /// <summary>提示高亮淡出时长（v1.5：给玩家留足时间看到那一格）。</summary>
+    private static readonly TimeSpan HintDuration = TimeSpan.FromSeconds(2);
+
     /// <summary>玩家是否手动调过缩放/平移。调过之后，窗口尺寸变化就不再强行重新适应（免得跟玩家抢视图）。</summary>
     private bool _userAdjustedView;
 
@@ -83,6 +86,11 @@ public sealed class BoardView : UserControl
     private int _highlightCenter = -1;
 
     private DateTimeOffset _highlightStartedAt;
+
+    /// <summary>提示高亮的格子（-1 表示没有，v1.5）。与放大镜高亮分开存，互不覆盖。</summary>
+    private int _hintCenter = -1;
+
+    private DateTimeOffset _hintStartedAt;
 
     /// <summary>需要告诉玩家一件事时抛出。级别由产生通知的地方决定，UI 只负责把它送出去。</summary>
     public event EventHandler<GameNotification>? NotificationRequested;
@@ -251,6 +259,7 @@ public sealed class BoardView : UserControl
         _hoverIndex = -1;
         _mouseCell = -1;
         _highlightCenter = -1;
+        _hintCenter = -1;
         ResetInputState();
 
 
@@ -1678,6 +1687,65 @@ public sealed class BoardView : UserControl
         return stillActive;
     }
 
+    // ------------------------------------------------------------ 提示高亮的淡出（v1.5）
+
+    /// <summary>当前提示高亮强度（1 → 0）；没有提示时为 0。</summary>
+    public float HintAlpha
+    {
+        get
+        {
+            if (_hintCenter < 0)
+            {
+                return 0f;
+            }
+
+            double elapsed = (DateTimeOffset.UtcNow - _hintStartedAt).TotalSeconds;
+            return elapsed >= HintDuration.TotalSeconds
+                ? 0f
+                : (float)(1.0 - (elapsed / HintDuration.TotalSeconds));
+        }
+    }
+
+    /// <summary>提示高亮的格子（-1 表示无）。</summary>
+    public int HintCenter => _hintCenter;
+
+    /// <summary>
+    /// 把一格画成金色高亮并 2 秒淡出。只做视觉提示：不翻格、不插旗、不改盘面，
+    /// 由 MainWindow 在调用 <c>FindHint</c> 之后调用。
+    /// </summary>
+    public void ShowHint(int index)
+    {
+        if (_session is null || !_session.Board.IsValidIndex(index))
+        {
+            return;
+        }
+
+        _hintCenter = index;
+        _hintStartedAt = DateTimeOffset.UtcNow;
+        InvalidateCells(index);
+        RequestRedraw();
+    }
+
+    /// <summary>由 UI 定时器逐帧驱动提示高亮淡出；返回 true 表示还需要继续重绘。</summary>
+    public bool AdvanceHint()
+    {
+        if (_hintCenter < 0)
+        {
+            return false;
+        }
+
+        int center = _hintCenter;
+        bool stillActive = HintAlpha > 0f;
+
+        if (!stillActive)
+        {
+            _hintCenter = -1;
+        }
+
+        InvalidateCells(center);
+        return stillActive;
+    }
+
     private BoardViewport BuildViewport()
     {
         float width = (float)_root.ActualWidth;
@@ -1728,6 +1796,8 @@ public sealed class BoardView : UserControl
                     _aiming,
                     _highlightCenter,
                     HighlightAlpha,
+                    _hintCenter,
+                    HintAlpha,
                     _heatmapEnabled);
             }
         }

@@ -1,4 +1,4 @@
-﻿namespace MineSweeper.Core;
+namespace MineSweeper.Core;
 
 /// <summary>
 /// 布雷器（§2.2）。
@@ -29,6 +29,12 @@ public static class BoardGenerator
     /// 雷特别密的自定义盘可能一直抽不到，这时退回普通盘并把 <see cref="Board.NoGuessGuaranteed"/> 置为 false。
     /// </summary>
     public const int NoGuessMaxAttempts = 2000;
+
+    /// <summary>
+    /// 无猜重抽的时间预算（毫秒，v1.5）。超过预算就接受当前这张盘并标记"未保证无猜"，
+    /// 不把首点卡在 UI 线程上太久（只有极端密雷的自定义盘会用到）。
+    /// </summary>
+    public const int NoGuessMaxMilliseconds = 500;
 
     /// <summary>判断某格是否落在首点安全区内（切比雪夫距离 ≤ radius）。</summary>
     public static bool IsInSafeZone(Board board, int firstClickIndex, int index, int radius)
@@ -98,6 +104,7 @@ public static class BoardGenerator
         bool noGuess = settings.NoGuess && board.CellCount <= Solver.LogicSolver.NoGuessMaxCells;
         int attempts = noGuess ? NoGuessMaxAttempts : 1;
         bool solvable = false;
+        var noGuessWatch = noGuess ? System.Diagnostics.Stopwatch.StartNew() : null;
 
         for (int attempt = 0; attempt < attempts; attempt++)
         {
@@ -121,6 +128,12 @@ public static class BoardGenerator
             if (Solver.LogicSolver.CanSolveWithoutGuessing(board, firstClickIndex))
             {
                 solvable = true;
+                break;
+            }
+
+            // 时间预算兜底：极端密雷的盘可能 2000 次都抽不到，不能把首点卡住太久。
+            if (noGuessWatch!.ElapsedMilliseconds >= NoGuessMaxMilliseconds)
+            {
                 break;
             }
         }

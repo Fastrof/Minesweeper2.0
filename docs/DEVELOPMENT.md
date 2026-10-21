@@ -40,7 +40,7 @@
 
 ```bat
 build.cmd     :: 编译整个解决方案（x64），0 警告 0 错误
-test.cmd      :: 跑 Core 层单测（385 个，以 test.cmd 输出为准）
+test.cmd      :: 跑 Core 层单测（387 个，以 test.cmd 输出为准）
 run.cmd       :: 启动游戏（unpackaged，存档在 %LOCALAPPDATA%\MineSweeper2）
 ```
 
@@ -158,7 +158,7 @@ MineSweeper2.sln
 │       ├── Services/ToastNotifier.cs# 通知出口：Windows Toast + 级别映射 + 限流
 │       ├── Services/SoundPlayer.cs  # 音效出口：首次合成 wav 到 %LOCALAPPDATA%\MineSweeper2\sounds\ 并播放
 │       └── app.manifest             # DPI 感知
-└── tests/MineSweeper.Core.Tests/    # xUnit；§8 的 10 条用例 + 回归 + 主题/音效 + 关卡 + 通知 + 成就/更新/双语 + 无猜 = 385 个测试（21 个测试文件，逐文件数字以 test.cmd 输出为准）
+└── tests/MineSweeper.Core.Tests/    # xUnit；§8 的 10 条用例 + 回归 + 主题/音效 + 关卡 + 通知 + 成就/更新/双语 + 无猜 = 387 个测试（21 个测试文件，逐文件数字以 test.cmd 输出为准）
 ```
 
 > 运行时会额外生成（**不属于源码**，也不需要提交）：`%LOCALAPPDATA%\MineSweeper2\`
@@ -677,7 +677,7 @@ unpackaged 运行时它一直是系统那个通用的"应用"占位图。
 | （文档未涉及）关卡制 | `Core/Levels/*` + `MainWindow` 关卡面板/目标条/结算 | ✅ 新增玩法，见 §6.10 |
 | （文档未涉及）关于页面 | `AboutInfo.cs` / `AboutText.cs` + `Views/About*Window` 两个固定尺寸小窗口 | ✅ 见 §6.11 |
 | §7.1 打包 | 已产出 MSIX，商店版已上架（`artifacts/msix` 里有双身份清单、签名证书与商店素材；源码树本身仍是 `WindowsPackageType=None` 的 unpackaged 工程，打包走 §12.5 的手工流程） | ✅ 见 §12.5 |
-| §8 测试计划 | `tests/MineSweeper.Core.Tests`（385 个测试，21 个测试文件 + `TestFactory.cs`；逐文件数字以 `test.cmd` 输出为准） | ✅ 全绿 |
+| §8 测试计划 | `tests/MineSweeper.Core.Tests`（387 个测试，21 个测试文件 + `TestFactory.cs`；逐文件数字以 `test.cmd` 输出为准） | ✅ 全绿 |
 
 ---
 
@@ -699,10 +699,10 @@ unpackaged 运行时它一直是系统那个通用的"应用"占位图。
 ## 9. 测试
 
 ```bat
-test.cmd          :: 385 个测试，约 1 秒（逐文件数字以 test.cmd 输出为准）
+test.cmd          :: 387 个测试，约 1 秒（逐文件数字以 test.cmd 输出为准）
 ```
 
-**385 个用例分布在 21 个测试文件里**（`tests/MineSweeper.Core.Tests/`，另有 `TestFactory.cs` 提供共用构造）。
+**387 个用例分布在 21 个测试文件里**（`tests/MineSweeper.Core.Tests/`，另有 `TestFactory.cs` 提供共用构造）。
 v1.5 的无猜用例集中在**新增的** `NoGuessTests.cs`（文件数 20 → 21）；v1.4 的 17 条仍在
 `ItemTests` / `PersistenceTests` / `UpdateTests` / `AreaShapeAndCoinTests` / `HistoryTests` 里。
 **项目里没有逐文件的精确数字，以 `test.cmd` 的输出为准**，下面按文件列覆盖范围：
@@ -921,7 +921,7 @@ v1.5 的无猜用例集中在**新增的** `NoGuessTests.cs`（文件数 20 → 
 | 项 | 状态 |
 |---|---|
 | 构建 | `build.cmd` → **0 警告 0 错误**（x64） |
-| 测试 | `test.cmd` → **385 / 385 通过**，约 1 秒（逐文件数字以 `test.cmd` 输出为准） |
+| 测试 | `test.cmd` → **387 / 387 通过**，约 1 秒（逐文件数字以 `test.cmd` 输出为准） |
 | 运行 | unpackaged 双击 exe 即可（见 §2.1）；另有 MSIX 包并已上架 Microsoft Store（§12.5） |
 | 开发文档进度 | A / B / D 类已全部落地；C 类（如把 `BoardView` 里的输入逻辑拆成 `Input/`）未做；MSIX 打包已完成 |
 | 已知限制 | 通知表头小图标改不动（§6.8）；热力图会泄露雷密度所以默认关闭（§6.4） |
@@ -1042,7 +1042,7 @@ MineSweeper.App    WinUI 3 + Win2D → 只负责显示与输入，不含游戏�
 | 根目录 | `MineSweeper2.sln`、`Directory.Build.props`、`Directory.Packages.props`、`build.cmd`/`run.cmd`/`test.cmd`、`.gitignore`、`README.md`、`MineSweeper2.0.ico`（图标原图，不参与构建） |
 | `src\MineSweeper.Core\` | 整个目录：核心逻辑层（零 UI 依赖）+ `Audio/` `History/` `Items/` `Levels/` `Notifications/` `Persistence/` `Settings/` `Themes/` |
 | `src\MineSweeper.App\` | 整个目录：WinUI 3 外壳 + `Rendering/` `Services/` `ViewModels/` `Views/` + `Assets/`（**4 个运行时资源必须带**：`MineSweeper2.0.ico`、`ToastIcon.png`、`Authors\Fastrof.png`、`Authors\Shinichi.png`） |
-| `tests\MineSweeper.Core.Tests\` | 整个目录：385 个测试（21 个测试文件），是文档里所有质量数据的出处 |
+| `tests\MineSweeper.Core.Tests\` | 整个目录：387 个测试（21 个测试文件），是文档里所有质量数据的出处 |
 
 整个仓库**不含任何第三方图片与音频素材**（主题是矢量自绘、音效是代码合成），这也是工程的红线之一。
 
@@ -1083,7 +1083,7 @@ git push -u origin main
   `artifacts/msix` 里现存的是 1.0 / 1.3 的历史产物）、`README.md` 与 `README.en.md` 的版本行；
 - `AboutInfo.cs` 里另外两处：`RepositoryUrl` 已填、`License` 文案；
 - `WhatsNewCatalog` **最前面**加本版条目（`UpdatePreferencesTests` 有守门测试，漏加会红）；
-- `build.cmd` → 0 警告 0 错误；`test.cmd` → 385/385（逐文件数字以 `test.cmd` 输出为准）；
+- `build.cmd` → 0 警告 0 错误；`test.cmd` → 387/387（逐文件数字以 `test.cmd` 输出为准）；
 - 源码里**没有任何硬编码的绝对路径**（唯一的外部引用是 `MineSweeper.Core.Tests.csproj` 里指向 `..\..\src\` 的相对引用），
   所以别人 clone 到任意目录都能直接编译。
 
@@ -1534,26 +1534,33 @@ v1.5 按 §12.4 的版本号规则打 **1.5.0.0**）。
 - **重抽上限与退回普通盘**：
   - 最多重抽 **2000** 张（`BoardGenerator.NoGuessMaxAttempts`）；
   - 棋盘超过 **10000** 格（`LogicSolver.NoGuessMaxCells`）时**不重抽**，直接按普通盘开局；
-  - 抽满 2000 张仍未抽到也退回普通盘；
+  - 抽满 2000 张、或超过 `NoGuessMaxMilliseconds = 500ms` 仍未抽到也退回普通盘；
   - 两种情况都置 `Board.NoGuessRequested = true`、`Board.NoGuessGuaranteed = false`；
     开局第一次翻开时弹一条「无猜模式：本局未能保证」提示（`noguess.notGuaranteed.*`），
     避免玩家以为开关没生效。成功抽到时 `NoGuessGuaranteed = true`。
 - **关卡锁定盘不受影响**：关卡走 `TryPlaceMinesLocked`（固定 seed 的锁定盘），完全不经过无猜生成；
   开关只作用于普通开局。无猜盘快照重开（`CreateReplay`）会带上 `NoGuess` 并重新验证一次保证标志。
-- **开关持久化**：设置面板「无猜模式」改变后立即写 `settings.json` 的 `noGuess`（`AppSettings.NoGuess`），
-  **下一局开始生效**（当前局已经布雷，不能中途换盘）；旧 settings.json 没有这个键时默认 `false`。
-- **提示接口（UI 尚未接）**：`GameSession.FindHint()` 已提供 —— 未开局 / 已结束返回 -1，
-  否则返回 `LogicSolver.FindSafeCell` 的结果；它**不改盘面、不计时、不算道具**。
-  当前**没有 UI 入口**（不在设置/物品栏/快捷键里），后续要接可直接调用。
+- **三开关统一持久化（v1.5）**：设置面板的首点扩展安全区、失焦暂停、无猜三个开关都写入 `settings.json`
+  （`AppSettings` schema 3：`firstClickOpening` / `pauseTimerOnFocusLoss` / `noGuess`）；
+  旧存档缺字段时用默认值（扩展开、失焦暂停关、无猜关），迁移不需要额外逻辑。
+- **提示接口与 UI（v1.5 已接）**：`GameSession.FindHint()` 未开局 / 已结束返回 -1，否则返回
+  `LogicSolver.FindSafeCell` 的结果；它**不改盘面、不计时、不算道具**。
+  普通/自定义局且不是无猜局时，状态栏显示「💡 提示」按钮：点击后 `MarkHintUsed()` + `BoardView.ShowHint`
+  金色高亮 2 秒（只画格子、不翻开、不插旗），推不出时提示"当前局面需要猜"。
+  用过提示的局与无猜局一样**不计最快记录**（`GameViewModel.SubmitRecordIfNeeded`）；
+  无猜局与关卡局隐藏该按钮（避免语义冲突 / 关卡星级失去可比性）。
+- **生成时间预算**：无猜重抽最多 2000 张，同时受 `BoardGenerator.NoGuessMaxMilliseconds = 500ms` 兜底；
+  超时就按当前盘开局并置 `NoGuessGuaranteed = false`（沿用上面的"未能保证"提示），
+  避免极端密雷的自定义盘把首点卡在 UI 线程上。
 - **分享串 / 快照**：无猜盘写成 **7 节** `宽x高:雷数:种子:首点:扩展:锁定(0/1):1`，
   第 7 节固定为 `1`；旧 5 节（非锁定）与 6 节（锁定）格式仍可解析。
   `TryReplayShareCode` 会把 `settings.NoGuess = noGuess && !locked`，并用同一套生成规则复现；
   `CaptureSnapshot().NoGuess = Board.NoGuessRequested`，所以「重打这一盘」仍是同一张无猜盘。
-- **性能**：推理器只在开局布雷时跑一次，不参与逐帧渲染；无猜前的 **383 条基线用例整套约 1 秒内跑完**，
-  加上新增用例后总耗时仍以 `test.cmd` 输出为准。
-- **测试**：新增 `tests/MineSweeper.Core.Tests/NoGuessTests.cs`（基线 23 条：三条规则、同种子同盘、
-  重抽上限与超 1 万格退回、`FindHint`、7 节分享串、快照重开）；设置开关持久化另有守门用例。
-  总用例数本文档按 **385** 记录（= 383 基线 + 预计 2 条设置用例），**最终以 `test.cmd` 输出为准**。
+- **性能**：推理器只在开局布雷时跑一次，不参与逐帧渲染；整套 **387 条用例约 1 秒内跑完**，
+  无猜生成在高级盘上通常几十毫秒内完成（极端密雷走 500ms 时间预算兜底）。
+- **测试**：新增 `tests/MineSweeper.Core.Tests/NoGuessTests.cs`（三条规则、同种子同盘、重抽上限与超 1 万格退回、
+  `FindHint` / `MarkHintUsed`、7 节分享串、快照重开）；设置 schema 2→3 与三个开关的默认值/迁移另有守门用例。
+  总用例数 **387**（`test.cmd` 实测 387/387，逐文件数字以输出为准）。
 
 **官网发布页视觉重做**
 
