@@ -12,10 +12,10 @@ internal static class AboutInfo
     public const string ProductName = "扫雷 2.0";
 
     /// <summary>
-    /// 版本号。与 README §0.7 的 v1.0 及 <c>MineSweeper.App.csproj</c> 的 <c>&lt;Version&gt;</c>
-    /// <b>三处必须一起改</b>；留两位（1.0 而不是 1.0.0），关于页面显示的更干净。
+    /// 版本号。与 README 的版本行及 <c>MineSweeper.App.csproj</c> 的 <c>&lt;Version&gt;</c>
+    /// <b>三处必须一起改</b>；补丁版用三段（1.5.1），让"关于"页和商店版本对得上。
     /// </summary>
-    public const string Version = "1.5";
+    public const string Version = "1.5.1";
 
     /// <summary>主开发。</summary>
     public const string PrimaryAuthor = "Fastrof";

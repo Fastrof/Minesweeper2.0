@@ -70,7 +70,7 @@
         </div>
 
         <ul class="hero-stats">
-          <li>387 unit tests, all green</li>
+          <li>389 unit tests, all green</li>
           <li>0 warnings, 0 errors</li>
           <li>No third-party images or audio</li>
         </ul>
@@ -147,13 +147,13 @@
         <article class="card reveal">
           <div class="ico" aria-hidden="true">🔧</div>
           <h3>Three items</h3>
-          <p>Magnifier (reveals a 2×2 area; the clicked cell is the top-left corner) · sonar scan (reports only <em>how many</em> mines are inside 3×3) · time freeze (pauses the countdown for 20 seconds); the "🛒 Shop" in the board's top-right corner trades this game's coins for items on the spot.</p>
+          <p>Magnifier (reveals a 2×2 area; the clicked cell is the top-left corner) · sonar scan (reports only <em>how many</em> mines are inside 3×3) · time freeze (pauses the countdown for 20 seconds); the "🛒 Shop" in the board's top-right corner trades accumulated coins for items.</p>
         </article>
 
         <article class="card reveal">
           <div class="ico" aria-hidden="true">🛒</div>
-          <h3>Coin shop (v1.4)</h3>
-          <p>Each mine you sweep out earns <b>1 coin</b>; open the "🛒 Shop" in the board's top-right corner any time — magnifier 30, sonar scan 20, time freeze 20. Coins and the items bought with them <b>last only for this game</b> and start at 0 on every game (and every level).</p>
+          <h3>Coin shop (v1.4; cross-game since v1.5.1)</h3>
+          <p>Each mine you sweep out earns <b>1 coin</b>; open the "🛒 Shop" in the board's top-right corner any time — magnifier 30, sonar scan 20, time freeze 20. Coins <b>accumulate across games</b> (new games and levels no longer reset them), and bought items go straight into your inventory and are kept across games.</p>
         </article>
 
         <article class="card reveal">
@@ -249,7 +249,7 @@
       <div class="section-head reveal">
         <p class="eyebrow">Items</p>
         <h2>Three items, each with one job</h2>
-        <p class="lead">You start with two of each; after that, each mine you sweep out earns 1 coin, spendable right away in the "🛒 Shop" in the board's top-right corner (magnifier 30 / sonar 20 / freeze 20). Coins and bought items last only for this game and are cleared when you leave it.</p>
+        <p class="lead">You start with two of each; after that, each mine you sweep out earns 1 coin, spendable in the "🛒 Shop" in the board's top-right corner (magnifier 30 / sonar 20 / freeze 20). Coins accumulate across games, and bought items are kept across games too.</p>
       </div>
 
       <div class="cards">
@@ -352,7 +352,7 @@
         </article>
         <article class="card reveal">
           <div class="ico" aria-hidden="true">✅</div>
-          <h3>387 unit tests</h3>
+          <h3>389 unit tests</h3>
           <p>A gatekeeper for the level table, mine placement boundaries, a 1000×1000 empty board without stack overflow, atomic saves and corruption recovery, distinct waveforms — all runnable without a UI in about one second.</p>
         </article>
         <article class="card reveal">

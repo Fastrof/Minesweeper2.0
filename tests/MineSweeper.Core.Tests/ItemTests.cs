@@ -476,11 +476,10 @@ public sealed class ItemTests
     }
 
     /// <summary>
-    /// v1.4 商店：金币够就能买，买完扣钱、道具进"本局购买"；
-    /// 金币不够一分不扣。
+    /// v1.4 商店：金币够就能买，买完扣钱；v1.5.1 起道具直接进账号库存（跨局保留）。
     /// </summary>
     [Fact]
-    public void 商店购买扣金币并把道具记进本局()
+    public void 商店购买扣金币并把道具记进账号库存()
     {
         ItemInventory inventory = TestFactory.Inventory(TestFactory.Config(threshold: 20, maxHold: 3, initialGift: 0));
         GameSession session = TestFactory.Custom(30, 16, 99, inventory);
@@ -504,10 +503,8 @@ public sealed class ItemTests
         Assert.Equal(0, bought.CoinsAfter);
         Assert.Equal(0, session.Coins.Coins);
         Assert.Equal(1, inventory.MagnifierCount);
-        Assert.Equal(1, inventory.PurchasedCountOf(ItemIds.Magnifier));
-
-        // 账号库存不受影响（买的这份只活在本局）
-        Assert.Equal(1, inventory.SessionPurchases.MagnifierCount);
+        Assert.Equal(1, inventory.Progress.MagnifierCount);
+        Assert.Equal(1, inventory.Progress.MagnifierGranted);
     }
 
     /// <summary>v1.4 商店：金币不够时报"还差多少"，并且不扣钱、不给道具。</summary>
@@ -547,9 +544,9 @@ public sealed class ItemTests
         Assert.Equal(20, session.ShopPriceOf(ItemIds.Freeze));
     }
 
-    /// <summary>v1.4：金币与"本局购买"都在新局 / 新关卡开始时清零。</summary>
+    /// <summary>v1.5.1：金币与商店买到的道具都跨局保留，新会话不再清零。</summary>
     [Fact]
-    public void 新开局时金币与本局购买清零()
+    public void 金币与商店道具跨局保留()
     {
         ItemInventory inventory = TestFactory.Inventory(TestFactory.Config(threshold: 20, maxHold: 3, initialGift: 0));
 
@@ -561,17 +558,21 @@ public sealed class ItemTests
             first.ToggleFlag(mines[i]);
         }
 
-        first.TryBuyItem(ItemIds.Magnifier);
-        Assert.Equal(1, inventory.PurchasedCountOf(ItemIds.Magnifier));
+        first.TryBuyItem(ItemIds.Magnifier);   // 30 金币 → 0，账号多 1 个放大镜
+        for (int i = 30; i < 40; i++)
+        {
+            first.ToggleFlag(mines[i]);        // 再赚 10
+        }
 
-        // 新的一局 = 新会话 = 新钱包；"本局购买"要显式 ResetSession
+        Assert.Equal(10, inventory.Progress.Coins);
+        Assert.Equal(1, inventory.MagnifierCount);
+
+        // 新的一局 = 新会话，但钱包绑定同一份账号进度 → 金币和道具都保留
         GameSession second = TestFactory.Custom(30, 16, 99, inventory);
-        inventory.ResetSession();
 
-        Assert.Equal(0, second.Coins.Coins);
-        Assert.Equal(0, second.Coins.EarnedTotal);
-        Assert.Equal(0, inventory.PurchasedCountOf(ItemIds.Magnifier));
-        Assert.Equal(0, inventory.MagnifierCount);
+        Assert.Equal(10, second.Coins.Coins);
+        Assert.Equal(0, second.Coins.EarnedTotal);   // “本局赚多少”仍从 0 开始
+        Assert.Equal(1, inventory.MagnifierCount);
     }
 
     /// <summary>v0.6：初次赠送改成**三种道具各 2 个**，且只送一次。</summary>

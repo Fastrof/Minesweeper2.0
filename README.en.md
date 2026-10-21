@@ -12,9 +12,9 @@ A Windows Minesweeper written from scratch: **reproduce the classic game 100% fi
 
 | | |
 |---|---|
-| **Version** | `v1.5` |
+| **Version** | `v1.5.1` |
 | **Build** | `build.cmd` → **0 warnings, 0 errors** |
-| **Tests** | `test.cmd` → **387 / 387 passing** (~1 second) |
+| **Tests** | `test.cmd` → **389 / 389 passing** (~1 second) |
 | **Repository** | https://github.com/Fastrof/Minesweeper2.0 |
 | **Store** | [Microsoft Store](https://apps.microsoft.com/detail/9NKR2M2ZDDL3) |
 | **License** | For learning and discussion only |
@@ -41,9 +41,10 @@ Left click to reveal · right click cycles through three states (flag → questi
 - **Accessibility**: UI Automation support for the self-drawn board, so screen readers can read the board aloud.
 - **Achievements (v1.1)**: 31 achievements worth 1000 points across five categories, two of them hidden.
 - **Update check (v1.1)**: a silent check on startup plus a manual one in Settings, with optional **automatic download** of the installer. The Store build never checks (the Store handles updates).
-- **Coin shop (v1.4)**: a "🛒 Shop" entry in the top-right corner of the board, openable any time during a game. Each mine you sweep out earns **1 coin**; the magnifier costs **30** coins, the sonar scan **20** and the time freeze **20**. Coins and the items bought with them **last only for the current game** — both start at 0 on every game (and every level) and are cleared when you leave it.
+- **Coin shop (v1.4; cross-game since v1.5.1)**: a "🛒 Shop" entry in the top-right corner of the board, openable any time during a game. Each mine you sweep out earns **1 coin**; the magnifier costs **30** coins, the sonar scan **20** and the time freeze **20**. Coins **accumulate across games** (new games and levels no longer reset them), and items bought in the shop go straight into your inventory and are kept across games.
 - **No-guess mode (v1.5)**: a new "No-guess mode" toggle in Settings (off by default). When it is on, every board is guaranteed to be solvable by pure logic — **no 50/50 coin flips**. The first-click safe zone and the same-seed-same-board rule are unchanged, and a no-guess share code carries one extra section (older share codes still replay).
 - **Hint (v1.5)**: normal games get a "💡 Hint" button in the status bar; it highlights one cell that is proven safe (without revealing it; available after the first reveal). Hinted games do not count for best times (a notice explains why), and the button is hidden in no-guess and level games.
+- **Coins carry over (v1.5.1)**: earned coins are no longer reset on every game; shop purchases go straight into the account inventory and are kept across games; old saves migrate automatically (coins start at 0).
 - **Website refresh (v1.5)**: the release page now uses a paper-colour grid, raised buttons and store badges.
 
 ## Quick start
@@ -54,7 +55,7 @@ cd Minesweeper2.0
 
 build.cmd     :: build the whole solution (x64), 0 warnings 0 errors
 run.cmd       :: launch the game
-test.cmd      :: run the Core unit tests (387 of them)
+test.cmd      :: run the Core unit tests (389 of them)
 ```
 
 The scripts probe `%ProgramFiles%\dotnet`, `%ProgramFiles(x86)%\dotnet`, `%DOTNET_ROOT%` and `D:\dotnet` in order, and fall back to whatever `dotnet` is on `PATH`. The equivalent manual commands:
@@ -116,14 +117,14 @@ src/
   MineSweeper.Core/         core logic: mine placement / flood fill / chord / levels / items / saves / themes / sound synthesis
   MineSweeper.App/          WinUI 3 shell: rendering, input, panels, about windows
 tests/
-  MineSweeper.Core.Tests/   387 xUnit test cases (21 test files)
+  MineSweeper.Core.Tests/   389 xUnit test cases (21 test files)
 ```
 
 > **Iron rule: never put game rules into the App layer.** The test is simple — "can this logic be tested without starting a UI?" If yes, it belongs in Core; Core may not reference `Windows.*` or `Microsoft.UI.*` at all.
 
 ## Tests
 
-**All 387 test cases pass** (21 test files, about one second; the per-file split comes from the `test.cmd` output).
+**All 389 test cases pass** (21 test files, about one second; the per-file split comes from the `test.cmd` output).
 
 Coverage (grouped by file):
 

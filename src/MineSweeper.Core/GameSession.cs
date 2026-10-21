@@ -73,8 +73,9 @@ public sealed class GameSession
         _itemRevealFadeSeconds = inventory?.Config.MagnifierRevealFadeSeconds ?? 0;
         Status = GameStatus.NotStarted;
 
-        // 金币从 0 开始：它天生是"一局生命周期"的数据（每局/每关清零，见 CoinWallet 的说明）。
-        Coins = new CoinWallet();
+        // v1.5.1：金币改为跨局累计，钱包只是账号余额（PlayerProgress.Coins）的读写视图；
+        // 纯经典/隐藏关没有物品栏时退化为本局钱包（那些模式没有商店，隐藏关也不落盘）。
+        Coins = new CoinWallet(inventory?.Progress);
     }
 
     /// <summary>棋盘。</summary>
@@ -87,8 +88,8 @@ public sealed class GameSession
     public ItemInventory? Inventory { get; }
 
     /// <summary>
-    /// 本局金币钱包（v1.4 商店）。扫出一颗雷 +1 金币，可在商店里换道具。
-    /// <b>每局重新开始时清零</b>；关卡模式每到新的一关也清零（由创建新会话保证）。
+    /// 本局金币钱包（v1.4 商店；v1.5.1 起余额跨局累计，见 <see cref="CoinWallet"/>）。
+    /// 扫出一颗雷 +1 金币；商店购买从同一个账号余额扣款。
     /// </summary>
     public CoinWallet Coins { get; }
 

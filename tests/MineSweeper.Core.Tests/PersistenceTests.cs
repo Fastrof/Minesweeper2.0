@@ -21,6 +21,7 @@ public sealed class PersistenceTests
             MagnifierCount = 2,
             MagnifierGranted = 5,
             InitialGiftGranted = true,
+            Coins = 123,
         };
 
         store.Save(progress);
@@ -31,6 +32,7 @@ public sealed class PersistenceTests
         Assert.Equal(2, loaded.Progress.MagnifierCount);
         Assert.Equal(5, loaded.Progress.MagnifierGranted);
         Assert.True(loaded.Progress.InitialGiftGranted);
+        Assert.Equal(123, loaded.Progress.Coins);
     }
 
     [Fact]
@@ -87,6 +89,27 @@ public sealed class PersistenceTests
         Assert.Equal(ProgressLoadStatus.Loaded, result.Status);
         Assert.Equal(PlayerProgress.CurrentSchemaVersion, result.Progress.SchemaVersion);
         Assert.Equal(17, result.Progress.CorrectMineFlagsTotal);
+        Assert.Equal(1, result.Progress.MagnifierCount);
+        Assert.Equal(0, result.Progress.Coins);   // v1.5.1：旧存档没有 coins 字段 → 0
+    }
+
+    /// <summary>v1.5.1：手改出来的负金币在读取时夹到 0，商店不会显示负余额。</summary>
+    [Fact]
+    public void 金币负数在读取时被夹到零()
+    {
+        string path = TestPaths.NewFile("progress.json");
+        File.WriteAllText(path, """
+            {
+              "schemaVersion": 2,
+              "coins": -5,
+              "magnifierCount": 1
+            }
+            """);
+
+        ProgressLoadResult result = new ProgressStore(path).Load();
+
+        Assert.Equal(ProgressLoadStatus.Loaded, result.Status);
+        Assert.Equal(0, result.Progress.Coins);
         Assert.Equal(1, result.Progress.MagnifierCount);
     }
 

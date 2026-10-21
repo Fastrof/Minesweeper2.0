@@ -41,6 +41,7 @@ public sealed partial class MainWindow : Window
     private readonly DispatcherQueueTimer _clock;
 
     private int _lastMagnifierCount;
+    private int _lastCoins;
     private bool _gameOverHandled;
 
     // ---------------------------------------------------------- v1.1：成就
@@ -596,6 +597,7 @@ public sealed partial class MainWindow : Window
         _levelSettleCompleted = false;
         _levelPlayerActed = false;
         _lastMagnifierCount = ViewModel.Inventory.MagnifierCount;
+        _lastCoins = ViewModel.Session?.Coins.Coins ?? 0;
         UpdateLevelGoalBar();
 
         // 新的一局开始了：把上一局的结算卡片与踩雷窗口都收掉，并刷新关卡面板的前后跳按钮
@@ -604,8 +606,8 @@ public sealed partial class MainWindow : Window
         SonarOverlay.Visibility = Visibility.Collapsed;
         HideShop();
 
-        // 新会话自带新的 CoinWallet（金币归零）；这里把"本局购买"也清掉并刷新右上角显示。
-        ResetShopSession();
+        // v1.5.1：金币/道具都跨局累计，新局只刷新显示，不再清零。
+        UpdateCoinDisplay();
         UpdateMagnifierSlot();   // 新局开始：三格道具的亮度按"有没有货 + 这局还能不能用"重算
         RefreshLevelList();
 
@@ -804,6 +806,14 @@ public sealed partial class MainWindow : Window
 
         // 扫出一颗雷 = +1 金币：立刻刷新右上角的金币显示（商店开着时按钮可用性也同步刷新）
         UpdateCoinDisplay();
+
+        // v1.5.1：金币是账号数据，插旗赚到后立刻落盘（和道具数量同一套时机）
+        int coinsNow = ViewModel.Session?.Coins.Coins ?? 0;
+        if (coinsNow != _lastCoins)
+        {
+            _lastCoins = coinsNow;
+            ViewModel.SaveProgress();
+        }
 
         // 道具数量一变就立刻落盘（三种都盯；关卡里用掉的也算，因为 v0.6 起两者共用同一份存档）
         int bagTotal = ViewModel.Inventory.MagnifierCount + ViewModel.Inventory.SonarCount + ViewModel.Inventory.FreezeCount;
@@ -3086,6 +3096,7 @@ public sealed partial class MainWindow : Window
         // 所以：备份原值 + try/finally 还原。自检过程的日志与断言仍读当时的真实值，语义不变。
         ItemInventory inventory = ViewModel.ActiveInventory;
         int magnifierBackup = inventory.Progress.MagnifierCount;
+        int coinsBackup = inventory.Progress.Coins;
 
         // 自检里插的 30 面正确旗会累加"累计扫雷数"，而它也是账号统计（关窗会落盘）；
         // 一并备份/还原，保证跑一次自检不改玩家数据。
@@ -3093,6 +3104,8 @@ public sealed partial class MainWindow : Window
 
         try
         {
+            // v1.5.1：金币跨局累计，自检先归零以便按"0→10→30→0"验证，结束后还原。
+            inventory.Progress.Coins = 0;
             session.Reveal(session.Board.Index(4, 4));
             int[] mines = session.Board.GetMineIndexes();
 
@@ -3149,23 +3162,26 @@ public sealed partial class MainWindow : Window
             AppPaths.Log(
                 $"[SHOPCHECK] 买放大镜：金币={session.Coins.Coins}（期望 0） · " +
                 $"放大镜 {magnifierBefore}→{inventory.MagnifierCount}（期望 +1） · " +
-                $"本局购买={inventory.PurchasedCountOf(ItemIds.Magnifier)}（期望 1）");
+                $"账号库存={inventory.MagnifierCount}（期望 {magnifierBefore + 1}，跨局保留）");
 
             // 退出商店
             OnShopCloseClick(this, new RoutedEventArgs());
             AppPaths.Log($"[SHOPCHECK] 关商店：可见={ShopOverlay.Visibility}（期望 Collapsed）");
 
-            // 新局清零
+            // 新局不再清零：把余额设成 42，开新局后应原样保留；商店道具也留在账号里
+            inventory.Progress.Coins = 42;
+            int magnifierAfterBuy = inventory.MagnifierCount;
             ViewModel.StartNewGame(
                 new GameStartOptions(GameMode.ClassicWithItems, FirstClickOpening: true, PauseTimerOnFocusLoss: false, LockedBoard: false),
                 9, 9, 10, seed: null, difficultyId: null, out _);
             AttachSession();
             AppPaths.Log(
-                $"[SHOPCHECK] 开新局：金币={ViewModel.Session?.Coins.Coins}（期望 0） · " +
-                $"本局购买={inventory.PurchasedCountOf(ItemIds.Magnifier)}（期望 0）");
+                $"[SHOPCHECK] 开新局：金币={ViewModel.Session?.Coins.Coins}（期望 42，跨局保留） · " +
+                $"账号放大镜={inventory.MagnifierCount}（期望 {magnifierAfterBuy}，跨局保留）");
         }
         finally
         {
+            inventory.Progress.Coins = coinsBackup;
             inventory.Progress.MagnifierCount = magnifierBackup;
             inventory.Progress.CorrectMineFlagsTotal = correctFlagsBackup;
             ViewModel.Refresh();
@@ -3295,10 +3311,9 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        // 发一个声呐；先手动开一格完成布雷（声呐要求首点之后才能用）。
-        // 用"本局购买"这一层而不是直接改账号库存：自检消耗掉的是本局的那一个，
-        // 关窗 SaveProgress 时不会动玩家真正攒下的道具。
-        ViewModel.ActiveInventory.SessionPurchases.SonarCount = 1;
+        // v1.5.1 起只有账号库存；自检临时 +1，结束/提前返回时还原，避免污染玩家存档。
+        int sonarBackup = ViewModel.ActiveInventory.Progress.SonarCount;
+        ViewModel.ActiveInventory.Progress.SonarCount = sonarBackup + 1;
         session.Reveal(session.Board.Index(4, 4));
         ViewModel.Refresh();
         UpdateMagnifierSlot();
@@ -3309,6 +3324,7 @@ public sealed partial class MainWindow : Window
         if (!_board.BeginAiming(1))
         {
             AppPaths.Log("[UICHECK] ✗ 进不了声呐瞄准态");
+            ViewModel.ActiveInventory.Progress.SonarCount = sonarBackup;
             return;
         }
 
@@ -3316,6 +3332,7 @@ public sealed partial class MainWindow : Window
         if (!_board.TryGetCellCenterForProbe(center, out double cx, out double cy))
         {
             AppPaths.Log("[UICHECK] ✗ 取不到中心格坐标");
+            ViewModel.ActiveInventory.Progress.SonarCount = sonarBackup;
             return;
         }
 
@@ -3329,6 +3346,7 @@ public sealed partial class MainWindow : Window
         // 手动确认后必须收起
         OnSonarCloseClick(this, new RoutedEventArgs());
         AppPaths.Log($"[UICHECK] 点『知道了』之后：弹窗可见={SonarOverlay.Visibility}（期望 Collapsed）");
+        ViewModel.ActiveInventory.Progress.SonarCount = sonarBackup;
     }
 
     private void RunDefeatUiCheck()
@@ -3674,12 +3692,12 @@ public sealed partial class MainWindow : Window
         UpdateMagnifierSlot();
         UpdateCoinDisplay();
         RefreshShop();
+
+        // v1.5.1：金币和账号库存都变了，立刻落盘，避免崩溃/杀进程丢购买结果。
+        ViewModel.SaveProgress();
     }
 
-    /// <summary>
-    /// 刷新棋盘右上角的"金币"显示（v1.4）。
-    /// 每局 / 每关开始时会自动变成 0（新会话 = 新钱包），所以这里只需要"读当前会话"。
-    /// </summary>
+    /// <summary>刷新棋盘右上角的"金币"显示（v1.5.1：账号余额，跨局累计）。</summary>
     private void UpdateCoinDisplay()
     {
         int coins = ViewModel.Session?.Coins.Coins ?? 0;
@@ -3692,13 +3710,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    /// <summary>新局 / 新关卡开始：清零本局购买（金币由新会话自带的 CoinWallet 天然归零）。</summary>
-    private void ResetShopSession()
-    {
-        ViewModel.Inventory.ResetSession();
-        HideShop();
-        UpdateCoinDisplay();
-    }
     // ------------------------------------------------------------ 胜利结算小弹窗
 
     /// <summary>最近一次通关的结算结果（弹窗按钮要用它判断"有没有下一关"）。</summary>
@@ -3776,8 +3787,7 @@ public sealed partial class MainWindow : Window
         HideSettlementOverlay();
         StartLevel(next);
 
-        // 需求：闯关模式每到新的一关，金币清零（新会话自带新 CoinWallet；本局购买也一并清掉）
-        ResetShopSession();
+        // v1.5.1：金币跨局累计，新关卡不再清零；刷新右上角显示即可。
         UpdateCoinDisplay();
     }
 

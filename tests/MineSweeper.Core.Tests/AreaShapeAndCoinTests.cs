@@ -127,9 +127,9 @@ public sealed class AreaShapeAndCoinTests
         Assert.Equal(20, wallet.SpentTotal);
     }
 
-    /// <summary>清零会把金币、累计赚、累计花全部归零。</summary>
+    /// <summary>v1.5.1：Reset 只清本局统计，不动账号余额。</summary>
     [Fact]
-    public void 清零()
+    public void 清零只清本局统计不清余额()
     {
         var wallet = new CoinWallet();
         for (int i = 0; i < 30; i++)
@@ -137,11 +137,30 @@ public sealed class AreaShapeAndCoinTests
             wallet.EarnForMine();
         }
 
-        wallet.TrySpend(CoinWallet.PriceOf(ItemIds.Freeze));
+        wallet.TrySpend(CoinWallet.PriceOf(ItemIds.Freeze));   // 30 → 10
         wallet.Reset();
 
-        Assert.Equal(0, wallet.Coins);
+        Assert.Equal(10, wallet.Coins);
         Assert.Equal(0, wallet.EarnedTotal);
         Assert.Equal(0, wallet.SpentTotal);
+    }
+
+    /// <summary>v1.5.1：绑定账号进度时金币跨钱包（跨局）累计。</summary>
+    [Fact]
+    public void 金币跨局累计()
+    {
+        var progress = new PlayerProgress();
+
+        var first = new CoinWallet(progress);
+        first.EarnForMine();
+        first.EarnForMine();
+
+        Assert.Equal(2, progress.Coins);
+
+        var second = new CoinWallet(progress);
+        Assert.Equal(2, second.Coins);
+        Assert.True(second.TrySpend(1));
+        Assert.Equal(1, progress.Coins);
+        Assert.Equal(1, first.Coins);   // 两个钱包指向同一份账号余额
     }
 }

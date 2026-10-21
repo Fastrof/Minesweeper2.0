@@ -40,7 +40,7 @@
 
 ```bat
 build.cmd     :: 编译整个解决方案（x64），0 警告 0 错误
-test.cmd      :: 跑 Core 层单测（387 个，以 test.cmd 输出为准）
+test.cmd      :: 跑 Core 层单测（389 个，以 test.cmd 输出为准）
 run.cmd       :: 启动游戏（unpackaged，存档在 %LOCALAPPDATA%\MineSweeper2）
 ```
 
@@ -118,11 +118,11 @@ MineSweeper2.sln
 │   │   │   └── TimeFreezeItem.cs           # v0.6 时间冻结：暂停计时 20 秒
 │   │   │   ├── IItem.cs             # 道具接口 + 失败原因文案
 │   │   │   ├── ItemConfig.cs        # §5.7 配置，JSON 键名就是 item.magnifier.*
-│   │   │   ├── ItemInventory.cs     # §5.2 持有量、上限、本局购买（v1.4）
+│   │   │   ├── ItemInventory.cs     # §5.2 持有量、上限、账号库存（v1.5.1 起跨局）
 │   │   │   ├── MagnifierItem.cs     # §5 放大镜：2×2 透视（v1.4 起，点中格为左上角）
 │   │   │   ├── MagnifierReveal.cs   # 透视结果 / 使用结果
 │   │   │   ├── AreaShape.cs         # v1.4 区域形状：宽×高 + 锚点（放大镜 2×2 左上 / 声呐 3×3 居中）
-│   │   │   ├── CoinWallet.cs        # v1.4 金币钱包：每颗雷 +1、价格、每局清零
+│   │   │   ├── CoinWallet.cs        # v1.4 金币钱包：每颗雷 +1、价格；v1.5.1 起余额跨局累计
 │   │   │   └── ShopPurchaseResult.cs # v1.4 商店购买结果（买不起 / 满仓 / 本局结束…）
 │   │   └── Persistence/
 │   │       ├── AtomicFile.cs        # 原子写盘（progress.json 与 records.json 共用）
@@ -158,7 +158,7 @@ MineSweeper2.sln
 │       ├── Services/ToastNotifier.cs# 通知出口：Windows Toast + 级别映射 + 限流
 │       ├── Services/SoundPlayer.cs  # 音效出口：首次合成 wav 到 %LOCALAPPDATA%\MineSweeper2\sounds\ 并播放
 │       └── app.manifest             # DPI 感知
-└── tests/MineSweeper.Core.Tests/    # xUnit；§8 的 10 条用例 + 回归 + 主题/音效 + 关卡 + 通知 + 成就/更新/双语 + 无猜 = 387 个测试（21 个测试文件，逐文件数字以 test.cmd 输出为准）
+└── tests/MineSweeper.Core.Tests/    # xUnit；§8 的 10 条用例 + 回归 + 主题/音效 + 关卡 + 通知 + 成就/更新/双语 + 无猜 = 389 个测试（21 个测试文件，逐文件数字以 test.cmd 输出为准）
 ```
 
 > 运行时会额外生成（**不属于源码**，也不需要提交）：`%LOCALAPPDATA%\MineSweeper2\`
@@ -529,7 +529,7 @@ unpackaged 运行时它一直是系统那个通用的"应用"占位图。
   最好成绩 +（破纪录时的）🏆 + 刚解锁的下一关，下面三个按钮：**重开这一关 / 下一关 / 返回游戏**。
   失败**不弹** —— Toast 已经说清楚了，而失败会反复发生，每次都拦一个弹窗会把"重试一下就好"的节奏打断。
 - 通关/失败都发 Toast：通关报星数与最好成绩、并提示刚解锁的下一关；失败提示"同一关盘面固定，可重试"。
-- 关卡局与普通局**共用同一套物品栏**（v0.6 起），不再有关卡专用库存；商店买到的数量也只在本局有效。
+- 关卡局与普通局**共用同一套物品栏**（v0.6 起），不再有关卡专用库存；商店买到的数量也进账号库存（v1.5.1 起跨局保留）。
 **验证方式**：`SAOLEI_LEVELS=check` 启动会跑一遍端到端自检 ——
 构建面板 → 开始 1-1 → 造一次通关 → 校验星数/解锁/落盘 → **校验结算弹窗的可见性与文案** →
 重开同一关校验"同一张盘" → 造一次失败（校验不弹结算）→ **点一次「下一关 ▶」进 1-2、再点「上一关 ◀」回到 1-1**。
@@ -597,11 +597,11 @@ unpackaged 运行时它一直是系统那个通用的"应用"占位图。
 - **冻结为什么不用"暂停计时器"**：`IClock` 是注入的抽象，最省事又最不容易漏改的做法是让
   `GameSession.ElapsedSeconds` 把冻结时长整体扣掉（`_frozenTotal` + 正在进行的那一段，单段上限 = 一次冻结时长）。
   这样计时显示、`LevelRules` 的星级判定全都自动跟着暂停。
-- **获得方式（v1.4 金币商店）**：每扫出一颗雷 +1 金币（与"正确标记"同一事件，纯经典模式也照赚）；
+- **获得方式（v1.4 金币商店；v1.5.1 起跨局）**：每扫出一颗雷 +1 金币（与"正确标记"同一事件，纯经典模式也照赚）；
   棋盘右上角「🛒 商店」随时可开，放大镜 30 / 声呐 20 / 冻结 20。商店的扣款与入账在
   `GameSession.TryBuyItem`（按 `ItemConfig.ShopPriceOf` 的价格扣、返回 `ShopPurchaseResult`），
-  金币在 `CoinWallet` 上、挂在 `GameSession` 里 —— 新局 = 新钱包，所以"每局清零"是结构保证的。
-  买到的数量进 `ItemInventory.SessionPurchases`（本局有效），消耗时**优先扣本局买的**。
+  金币余额存在 `PlayerProgress.Coins`（`CoinWallet` 只是每局读写视图，新局 / 新关卡不再清零），
+  买到的数量进账号库存 `ItemInventory.ClaimPurchase`（跨局保留）。
   v1.4 同时**取消**了"每 20 颗雷三选一"：`pendingRewards` / `ClaimReward` 已移除，正确标记只累加统计。
 - **道具栏**：`ItemInventory` 从"只有放大镜"改成三种道具的通用接口
   （`CountOf` / `IsFull` / `TryConsume` / `ClaimPurchase`），旧 API（`TryGrantMagnifier` / `IsMagnifierFull` /
@@ -677,7 +677,7 @@ unpackaged 运行时它一直是系统那个通用的"应用"占位图。
 | （文档未涉及）关卡制 | `Core/Levels/*` + `MainWindow` 关卡面板/目标条/结算 | ✅ 新增玩法，见 §6.10 |
 | （文档未涉及）关于页面 | `AboutInfo.cs` / `AboutText.cs` + `Views/About*Window` 两个固定尺寸小窗口 | ✅ 见 §6.11 |
 | §7.1 打包 | 已产出 MSIX，商店版已上架（`artifacts/msix` 里有双身份清单、签名证书与商店素材；源码树本身仍是 `WindowsPackageType=None` 的 unpackaged 工程，打包走 §12.5 的手工流程） | ✅ 见 §12.5 |
-| §8 测试计划 | `tests/MineSweeper.Core.Tests`（387 个测试，21 个测试文件 + `TestFactory.cs`；逐文件数字以 `test.cmd` 输出为准） | ✅ 全绿 |
+| §8 测试计划 | `tests/MineSweeper.Core.Tests`（389 个测试，21 个测试文件 + `TestFactory.cs`；逐文件数字以 `test.cmd` 输出为准） | ✅ 全绿 |
 
 ---
 
@@ -699,10 +699,10 @@ unpackaged 运行时它一直是系统那个通用的"应用"占位图。
 ## 9. 测试
 
 ```bat
-test.cmd          :: 387 个测试，约 1 秒（逐文件数字以 test.cmd 输出为准）
+test.cmd          :: 389 个测试，约 1 秒（逐文件数字以 test.cmd 输出为准）
 ```
 
-**387 个用例分布在 21 个测试文件里**（`tests/MineSweeper.Core.Tests/`，另有 `TestFactory.cs` 提供共用构造）。
+**389 个用例分布在 21 个测试文件里**（`tests/MineSweeper.Core.Tests/`，另有 `TestFactory.cs` 提供共用构造）。
 v1.5 的无猜用例集中在**新增的** `NoGuessTests.cs`（文件数 20 → 21）；v1.4 的 17 条仍在
 `ItemTests` / `PersistenceTests` / `UpdateTests` / `AreaShapeAndCoinTests` / `HistoryTests` 里。
 **项目里没有逐文件的精确数字，以 `test.cmd` 的输出为准**，下面按文件列覆盖范围：
@@ -737,7 +737,7 @@ v1.5 的无猜用例集中在**新增的** `NoGuessTests.cs`（文件数 20 → 
 6. 胜负：开完最后一个安全格立刻取胜；踩雷即失败；结束后禁止操作
 7. 道具计数：同一雷反复插拔只计 1 次；插在安全格不计数
 8. 道具与金币：初赠三种各 2 个且只送一次；持有上限 9；扫出一颗雷 +1 金币（与"正确标记"同一事件，
-   纯经典模式也照样赚）；商店按 `config.json` 的价格扣款，买不起 / 满仓一分不扣；金币与"本局购买"每局清零。
+   纯经典模式也照样赚）；商店按 `config.json` 的价格扣款，买不起 / 满仓一分不扣；金币跨局累计、商店道具进账号库存（v1.5.1 起）。
    （v1.4 起取消了"每 20 颗雷三选一"，阈值只留给统计展示。）
 9. 透视：2×2 且点中的格子是**左上角**（贴边按棋盘边界裁切，最多 4 格、边角更少）；
    **不算翻开、不自动插旗、不触发胜利**；首点前禁止；宽高跟随配置
@@ -896,7 +896,7 @@ v1.5 的无猜用例集中在**新增的** `NoGuessTests.cs`（文件数 20 → 
 34. **设置里的"模式"下拉删掉**：它把"能不能用道具"变成玩家的前置选择，而需求要的是"道具默认就能用"。
     Core 保留 `GameMode.ClassicPure` 这条能力（有单测），只是界面不再暴露 —— 将来要做"纯净榜"可以直接复用。
 35. **初赠三种各 2 个 + 持有上限 9**：kicker 是"让玩家一定试到每一种道具"。2 个 = 够试一次还有一次备用。
-    v1.4 把上限从 3 提到 9：金币每局清零、买到的道具也随本局清零，账号里的存量是长期累积的，
+    v1.4 把上限从 3 提到 9；v1.5.1 起金币与商店道具都跨局累计（不再每局清零），账号存量长期累积，
     上限还是 3 的话老玩家早就满了、商店对他们等于不存在。
 **待办**
 
@@ -921,7 +921,7 @@ v1.5 的无猜用例集中在**新增的** `NoGuessTests.cs`（文件数 20 → 
 | 项 | 状态 |
 |---|---|
 | 构建 | `build.cmd` → **0 警告 0 错误**（x64） |
-| 测试 | `test.cmd` → **387 / 387 通过**，约 1 秒（逐文件数字以 `test.cmd` 输出为准） |
+| 测试 | `test.cmd` → **389 / 389 通过**，约 1 秒（逐文件数字以 `test.cmd` 输出为准） |
 | 运行 | unpackaged 双击 exe 即可（见 §2.1）；另有 MSIX 包并已上架 Microsoft Store（§12.5） |
 | 开发文档进度 | A / B / D 类已全部落地；C 类（如把 `BoardView` 里的输入逻辑拆成 `Input/`）未做；MSIX 打包已完成 |
 | 已知限制 | 通知表头小图标改不动（§6.8）；热力图会泄露雷密度所以默认关闭（§6.4） |
@@ -988,7 +988,7 @@ MineSweeper.App    WinUI 3 + Win2D → 只负责显示与输入，不含游戏�
 | `SAOLEI_UI=exit` | **退出按钮自检**：踩雷弹出失败窗口后调用「退出游戏」。判据以**进程是否消失**为准（`Close()` 是异步的，日志里那行一定会先写出来），随后应能看到"窗口关闭，进度与设置已落盘" |
 | `SAOLEI_UI=play` | 把游戏摆成"**可直接手动试声呐**"的状态，然后停在这里不自动跑完 |
 | `SAOLEI_UI=magnifier` | **放大镜形状自检（v1.4）**：开 16×16/40 的带道具局，进真实瞄准态 → 真的点在 (5,5)，日志报配置（宽/高/锚点，期望 `2/2/(0,0)`）与实际被透视的 4 格（应为 (5,5)(6,5)(5,6)(6,6)） |
-| `SAOLEI_UI=shop` | **商店机制自检（v1.4）**：开 16×16/40 的带道具局 → 插旗赚金币 → 走真实按钮打开商店 → 逐个购买（买不起的、买得起的都试）→ 关商店；覆盖"金币来源 / 三种价格 / 买完扣钱 / 退出商店 / 每局清零"（`[SHOPCHECK]` 行） |
+| `SAOLEI_UI=shop` | **商店机制自检（v1.4）**：开 16×16/40 的带道具局 → 插旗赚金币 → 走真实按钮打开商店 → 逐个购买（买不起的、买得起的都试）→ 关商店；覆盖"金币来源 / 三种价格 / 买完扣钱 / 退出商店 / 新局保留（v1.5.1）"（`[SHOPCHECK]` 行） |
 | `SAOLEI_NEWGAME=<秒>` | 延迟 N 秒后模拟"点一次笑脸重开"（走的就是按钮那条 `RestartCurrentGame()`），记录重开前后的**盘面参数**与**窗口状态**（`[NEWGAME]` 行） |
 | `SAOLEI_TOASTBURST=1` | 间隔 400ms 连发两条通知（Warning + Error），然后查操作中心里本作还剩几条。**验证"新通知替换旧的、不排队"**：应当只剩 1 条且是后发的那条 |
 | `SAOLEI_ITEMS=1` | 开一局"经典 + 道具"，每种道具各发一个并各用一次（便于截图与日志核对）。注意：默认开局是纯经典模式，**道具在该模式下本来就会被正确拒绝**；v1.4 起"三选一"奖励已移除，自检里只改 `progress.json` 的旧 `pendingRewards` 字段做兼容性检查 |
@@ -1042,7 +1042,7 @@ MineSweeper.App    WinUI 3 + Win2D → 只负责显示与输入，不含游戏�
 | 根目录 | `MineSweeper2.sln`、`Directory.Build.props`、`Directory.Packages.props`、`build.cmd`/`run.cmd`/`test.cmd`、`.gitignore`、`README.md`、`MineSweeper2.0.ico`（图标原图，不参与构建） |
 | `src\MineSweeper.Core\` | 整个目录：核心逻辑层（零 UI 依赖）+ `Audio/` `History/` `Items/` `Levels/` `Notifications/` `Persistence/` `Settings/` `Themes/` |
 | `src\MineSweeper.App\` | 整个目录：WinUI 3 外壳 + `Rendering/` `Services/` `ViewModels/` `Views/` + `Assets/`（**4 个运行时资源必须带**：`MineSweeper2.0.ico`、`ToastIcon.png`、`Authors\Fastrof.png`、`Authors\Shinichi.png`） |
-| `tests\MineSweeper.Core.Tests\` | 整个目录：387 个测试（21 个测试文件），是文档里所有质量数据的出处 |
+| `tests\MineSweeper.Core.Tests\` | 整个目录：389 个测试（21 个测试文件），是文档里所有质量数据的出处 |
 
 整个仓库**不含任何第三方图片与音频素材**（主题是矢量自绘、音效是代码合成），这也是工程的红线之一。
 
@@ -1078,12 +1078,12 @@ git push -u origin main
 
 ### 12.4 发布前还要确认
 
-- **版本号要一起改 6 处**：`src\MineSweeper.App\AboutInfo.cs` 的 `Version`（`1.5`）、
-  `MineSweeper.App.csproj` 的 `<Version>`（`1.5.0`）、MSIX 商店清单与侧载清单的 `Identity Version`（发版时写 `1.5.0.0`；
-  `artifacts/msix` 里现存的是 1.0 / 1.3 的历史产物）、`README.md` 与 `README.en.md` 的版本行；
+- **版本号要一起改 6 处**：`src\MineSweeper.App\AboutInfo.cs` 的 `Version`（`1.5.1`）、
+  `MineSweeper.App.csproj` 的 `<Version>`（`1.5.1`）、MSIX 商店清单与侧载清单的 `Identity Version`（发版时写 `1.5.1.0`；
+  `artifacts/msix` 里现存的是 1.0 / 1.3 / 1.5.0 的历史产物）、`README.md` 与 `README.en.md` 的版本行；
 - `AboutInfo.cs` 里另外两处：`RepositoryUrl` 已填、`License` 文案；
 - `WhatsNewCatalog` **最前面**加本版条目（`UpdatePreferencesTests` 有守门测试，漏加会红）；
-- `build.cmd` → 0 警告 0 错误；`test.cmd` → 387/387（逐文件数字以 `test.cmd` 输出为准）；
+- `build.cmd` → 0 警告 0 错误；`test.cmd` → 389/389（逐文件数字以 `test.cmd` 输出为准）；
 - 源码里**没有任何硬编码的绝对路径**（唯一的外部引用是 `MineSweeper.Core.Tests.csproj` 里指向 `..\..\src\` 的相对引用），
   所以别人 clone 到任意目录都能直接编译。
 
@@ -1094,7 +1094,7 @@ git push -u origin main
 > `artifacts/` 已在 `.gitignore` 里排除，**不要提交**。
 
 已上架的商店页：**https://apps.microsoft.com/detail/9NKR2M2ZDDL3**（`artifacts/msix` 里有 1.0.0.0 与 1.3.0.0 两代历史包；
-v1.5 按 §12.4 的版本号规则打 **1.5.0.0**）。
+v1.5.1 按 §12.4 的版本号规则打 **1.5.1.0**）。
 
 1. **先改版本号 6 处**（见 §12.4）并跑一遍 `test.cmd`。
 2. **选清单（双身份）**：`artifacts/msix/manifests/` 下有两套——商店用 `AppxManifest.store.xml`
@@ -1125,7 +1125,7 @@ v1.5 按 §12.4 的版本号规则打 **1.5.0.0**）。
    提交前确认商店清单里的 `DisplayName` / `Description` / `PublisherDisplayName` 与商店资料一致。
 8. **GitHub Release 线**：同一份代码用侧载清单 + GitHub 证书另打一个包，
    产物与随包证书的成品格式见 `artifacts/msix/github/`（历史示例 `Minesweeper2.0_1.3.0.0_x64_signed.msix` +
-   `MineSweeper2.0-GitHub.cer` + `INSTALL.md` / `安装说明.md`；本轮按 **1.5.0.0** 命名），一并挂到 Release 里。
+   `MineSweeper2.0-GitHub.cer` + `INSTALL.md` / `安装说明.md`；本轮按 **1.5.1.0** 命名），一并挂到 Release 里。
 9. **验证清单**：商店页可访问 → 能安装启动 → 通知/图标正常 → 存档落在包数据目录 → 卸载干净。
 
 ---
@@ -1470,7 +1470,7 @@ v1.5 按 §12.4 的版本号规则打 **1.5.0.0**）。
 **金币经济**
 - 每扫出一颗雷 **+1 金币**（与"正确标记"同一事件，纯经典模式也照赚）——`GameSession.ToggleFlag` 里调 `Coins.EarnForMine()`，实现在 `Core/Items/CoinWallet.cs`。
 - 价格：放大镜 **30** / 声呐扫描 **20** / 时间冻结 **20**。默认值在 `CoinWallet`；实际售价可被 `config.json` 的 `shop.*.price` 覆盖，而扣款只认配置价，避免"显示 50、实扣 30"。
-- 金币与买到的道具**只在本局有效**：每局重新开始清零，关卡模式每到新的一关也清零。钱包挂在 `GameSession` 上（新局 = 新钱包，结构保证），买到的数量在 `ItemInventory.SessionPurchases`，消耗时优先扣本局买的。
+- 金币与买到的道具**跨局保留**（v1.5.1 起）：余额在 `progress.json` 的 `coins` 字段（`PlayerProgress.Coins`），新局 / 新关卡不再清零；`CoinWallet` 只是账号余额的读写视图，并记录本局赚/花。商店购买走 `ItemInventory.ClaimPurchase`，直接写账号库存；旧 `SessionPurchases`（本局临时库存）已移除。旧存档没有 `coins` 字段时迁移为 0（schema 1→2），不影响原有道具与统计。
 
 **商店入口与购买**
 - 棋盘右上角浮层「🛒 商店 + 🪙 金币数」，**不占布局**（不会把棋盘挤小），扫雷过程中随时打开/关闭。
@@ -1557,14 +1557,36 @@ v1.5 按 §12.4 的版本号规则打 **1.5.0.0**）。
   第 7 节固定为 `1`；旧 5 节（非锁定）与 6 节（锁定）格式仍可解析。
   `TryReplayShareCode` 会把 `settings.NoGuess = noGuess && !locked`，并用同一套生成规则复现；
   `CaptureSnapshot().NoGuess = Board.NoGuessRequested`，所以「重打这一盘」仍是同一张无猜盘。
-- **性能**：推理器只在开局布雷时跑一次，不参与逐帧渲染；整套 **387 条用例约 1 秒内跑完**，
+- **性能**：推理器只在开局布雷时跑一次，不参与逐帧渲染；整套 **389 条用例约 1 秒内跑完**，
   无猜生成在高级盘上通常几十毫秒内完成（极端密雷走 500ms 时间预算兜底）。
 - **测试**：新增 `tests/MineSweeper.Core.Tests/NoGuessTests.cs`（三条规则、同种子同盘、重抽上限与超 1 万格退回、
   `FindHint` / `MarkHintUsed`、7 节分享串、快照重开）；设置 schema 2→3 与三个开关的默认值/迁移另有守门用例。
-  总用例数 **387**（`test.cmd` 实测 387/387，逐文件数字以输出为准）。
+  总用例数 **389**（`test.cmd` 实测 389/389，逐文件数字以输出为准）。
 
 **官网发布页视觉重做**
 
 - `docs/index.html` / `docs/en.html` 换成纸色底 + 格线 + 凸起按钮 + 商店徽章；
   只动展示层（HTML/CSS/站点资源），不影响客户端行为与存档。
 - README / README.en 同步到 v1.5（无猜模式、测试数、版本行），并按同一套口径补一句官网视觉重做。
+
+---
+
+## 16. v1.5.1 变更要点（金币跨局累计 + 提示修复）
+
+**金币与商店**
+- 金币从"每局清零"改为**跨局累计**：余额存在 `progress.json` 的 `coins`（`PlayerProgress.Coins`，schema 由 1 升到 2）；
+  旧存档没有该字段时迁移为 0，负数读取时夹到 0。
+- `CoinWallet` 仍是每局一个，但只作账号余额的读写视图（构造时传 `inventory?.Progress`）；
+  `EarnedTotal` / `SpentTotal` 只统计本局，不影响累计余额。
+- 商店购买走 `ItemInventory.ClaimPurchase`，直接写账号库存（`Progress.*Count`），跨局保留；
+  旧的 `SessionPurchases`（本局临时库存）已移除。
+- 新局 / 新关卡 / 练习局都不再清零金币和道具；插旗赚金币、购买后立即 `SaveProgress()`。
+- UI：右上角与商店显示累计金币（`shop.coins`、`mode.coins`），商店说明改为"金币跨局累计"。
+
+**提示**
+- 首点前提示按钮置灰；首点前点击、推不出安全格、提示局不计记录都有可见通知（不再用 QuietInfo）。
+
+**验证**
+- `dotnet build` → 0 警告 0 错误；`dotnet test` → **389 / 389**。
+- 实机：预置 `coins=77` 启动 → 显示 🪙 77；换初级局仍 77；商店买放大镜 → `progress.json` 立即落盘
+  `coins=47`、`magnifierCount=1`；新局金币/道具保留。

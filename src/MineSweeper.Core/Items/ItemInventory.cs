@@ -45,40 +45,14 @@ public sealed class ItemInventory
     /// <summary>单种道具的持有上限（§5.2 的三格）。</summary>
     public int MaxHold => Config.MagnifierMaxHold;
 
-    /// <summary>
-    /// 本局通过**商店**买到的数量（v1.4）。
-    ///
-    /// 语义是"账号库存之外、只在本局有效的额外持有量"：
-    /// <list type="bullet">
-    /// <item>显示/可用数量 = 账号库存 + 本局购买；</item>
-    /// <item>消耗时**优先扣本局买的**（用掉就没了，不会"退回"账号库存）；</item>
-    /// <item>每局 / 每关开始时清零（<see cref="ResetSession"/>），因为需求要求
-    ///       "金币每局清零、买到的道具也跟着这一局走"。</item>
-    /// </list>
-    /// 这样既能满足"商店是每局经济"，又不会把玩家原来攒下的道具弄丢。
-    /// </summary>
-    public PlayerProgress SessionPurchases { get; private set; } = PlayerProgress.CreateDefault();
+    /// <summary>当前持有的放大镜数量（账号库存）。</summary>
+    public int MagnifierCount => Progress.MagnifierCount;
 
-    /// <summary>新局 / 新关卡开始：清空本局购买（金币在 <see cref="GameSession.Coins"/> 上另行清零）。</summary>
-    public void ResetSession() => SessionPurchases = PlayerProgress.CreateDefault();
+    /// <summary>当前持有的声呐扫描数量（账号库存）。</summary>
+    public int SonarCount => Progress.SonarCount;
 
-    /// <summary>本局通过商店买到的某个道具数量。</summary>
-    public int PurchasedCountOf(string itemId) => itemId switch
-    {
-        ItemIds.Magnifier => SessionPurchases.MagnifierCount,
-        ItemIds.Sonar => SessionPurchases.SonarCount,
-        ItemIds.Freeze => SessionPurchases.FreezeCount,
-        _ => 0,
-    };
-
-    /// <summary>当前持有的放大镜数量（账号库存 + 本局购买）。</summary>
-    public int MagnifierCount => Progress.MagnifierCount + SessionPurchases.MagnifierCount;
-
-    /// <summary>当前持有的声呐扫描数量（账号库存 + 本局购买）。</summary>
-    public int SonarCount => Progress.SonarCount + SessionPurchases.SonarCount;
-
-    /// <summary>当前持有的时间冻结数量（账号库存 + 本局购买）。</summary>
-    public int FreezeCount => Progress.FreezeCount + SessionPurchases.FreezeCount;
+    /// <summary>当前持有的时间冻结数量（账号库存）。</summary>
+    public int FreezeCount => Progress.FreezeCount;
 
     /// <summary>距离下一次奖励还差几次正确标记（v1.4 起奖励机制已移除，仅保留给统计展示）。</summary>
     public int CorrectFlagsTowardNext
@@ -152,8 +126,7 @@ public sealed class ItemInventory
     public void RecordCorrectFlag() => Progress.CorrectMineFlagsTotal++;
 
     /// <summary>
-    /// 商店购买成功后把道具记进"本局购买"（v1.4）。
-    /// 只写 <see cref="SessionPurchases"/>，**不动账号库存** —— 所以它必然随局结束/新关卡清零。
+    /// 商店购买成功后把道具记进**账号库存**（v1.5.1 起跨局保留）。
     /// </summary>
     public ItemGrantResult ClaimPurchase(string itemId)
     {
@@ -165,13 +138,14 @@ public sealed class ItemInventory
         switch (itemId)
         {
             case ItemIds.Magnifier:
-                SessionPurchases.MagnifierCount++;
+                Progress.MagnifierCount++;
+                Progress.MagnifierGranted++;
                 break;
             case ItemIds.Sonar:
-                SessionPurchases.SonarCount++;
+                Progress.SonarCount++;
                 break;
             case ItemIds.Freeze:
-                SessionPurchases.FreezeCount++;
+                Progress.FreezeCount++;
                 break;
             default:
                 return new ItemGrantResult(false, false, 0);
@@ -195,32 +169,20 @@ public sealed class ItemInventory
 
     /// <summary>
     /// 消耗一个指定道具。数量为 0 时返回 false。
-    ///
-    /// <b>v1.4 起优先扣本局商店买的那份</b>：买来的用掉就走，不会"退回"成账号库存；
-    /// 本局没买过（或已经用完）才去扣账号库存。玩家看到的总数 = 两者之和，所以
-    /// "优先扣哪一份"对玩家不可见，只影响"这一局结束后还剩多少"。
+    /// v1.5.1 起只有一份库存（账号），不再区分“本局购买”。
     /// </summary>
     public bool TryConsume(string itemId)
     {
         switch (itemId)
         {
-            case ItemIds.Magnifier when SessionPurchases.MagnifierCount > 0:
-                SessionPurchases.MagnifierCount--;
-                return true;
             case ItemIds.Magnifier when Progress.MagnifierCount > 0:
                 Progress.MagnifierCount--;
                 return true;
 
-            case ItemIds.Sonar when SessionPurchases.SonarCount > 0:
-                SessionPurchases.SonarCount--;
-                return true;
             case ItemIds.Sonar when Progress.SonarCount > 0:
                 Progress.SonarCount--;
                 return true;
 
-            case ItemIds.Freeze when SessionPurchases.FreezeCount > 0:
-                SessionPurchases.FreezeCount--;
-                return true;
             case ItemIds.Freeze when Progress.FreezeCount > 0:
                 Progress.FreezeCount--;
                 return true;

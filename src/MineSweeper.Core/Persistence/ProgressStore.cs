@@ -123,6 +123,10 @@ public sealed class ProgressStore
         }
 
         PlayerProgress migrated = Migrate(loaded);
+
+        // 手改存档也不能让金币变负数（v1.5.1 起金币是账号余额）
+        migrated.Coins = Math.Max(0, migrated.Coins);
+
         return new ProgressLoadResult(migrated, ProgressLoadStatus.Loaded, null, null);
     }
 
@@ -141,12 +145,14 @@ public sealed class ProgressStore
         AtomicFile.WriteAllText(Path, JsonSerializer.Serialize(progress, SerializerOptions));
     }
 
-    /// <summary>把旧版本结构升级到当前结构（§6.1）。当前只有 v1，所以这里是直通。</summary>
+    /// <summary>把旧版本结构升级到当前结构（§6.1）。v1→v2 新增跨局金币（默认 0）。</summary>
     private static PlayerProgress Migrate(PlayerProgress loaded)
     {
         if (loaded.SchemaVersion < PlayerProgress.CurrentSchemaVersion)
         {
-            // 将来加字段时在这里补默认值，然后统一把版本号推到当前值
+            // v1→v2：新增 coins 字段。旧存档没有该键时反序列化为 0；
+            // 顺手防御手改出来的负数，避免商店显示负余额。
+            loaded.Coins = Math.Max(0, loaded.Coins);
             loaded.SchemaVersion = PlayerProgress.CurrentSchemaVersion;
         }
 

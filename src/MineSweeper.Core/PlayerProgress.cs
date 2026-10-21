@@ -9,10 +9,17 @@ namespace MineSweeper.Core;
 public sealed class PlayerProgress
 {
     /// <summary>当前 schema 版本。改结构时 +1 并补迁移函数（§6.1）。</summary>
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     [JsonPropertyName("schemaVersion")]
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
+
+    /// <summary>
+    /// 账号金币余额（v1.5.1）：**跨局累计**，不再每局清零。
+    /// 通过正确插旗赚取、在商店里消费；旧存档没有这个字段时迁移为 0。
+    /// </summary>
+    [JsonPropertyName("coins")]
+    public int Coins { get; set; }
 
     /// <summary>账号级累计的"正确标记"数（跨局不清零，§5.2）。</summary>
     [JsonPropertyName("correctMineFlagsTotal")]
