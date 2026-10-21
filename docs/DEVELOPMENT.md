@@ -544,13 +544,14 @@ unpackaged 运行时它一直是系统那个通用的"应用"占位图。
 - **关于游戏**：一句话简介、还原了什么 / 新加了什么、技术栈与规模、开源地址、许可，
   以及"本工程不含任何来自 Windows 7 扫雷的素材"这条版权红线（文档 §7.3）。
 - **关于作者**：主开发 **Fastrof**、第二开发 **Shinichi**，各配一张圆形头像与分工说明；
+  下方另有「贡献者」栏，第一位是 **LLJ99999**（在校大学生，负责 Minesweeper 2.0 官方网页的全新重新设计）；
   底部标注"两位都是计算机专业在读的大二学生"（文案在 `AboutInfo.AuthorsNote`）。
 
 **窗口尺寸与样式对齐 Windows 自己的"关于 Windows"（winver）**：
 
 | 项 | 做法 |
 |---|---|
-| 尺寸 | 先实测 winver：可视边界 **536×521** 物理像素、外框 550×528（本机 100% 缩放，1 DIP = 1 像素）。于是把 `AppWindow.Resize` 定为 **550×528**，实测可视尺寸正好 **536×521** ✓ |
+| 尺寸 | 实测 winver：**150% 缩放下外框 550×528 物理像素**（可视 536×521），即 **367×352 DIP**。`AppWindow.Resize` 按 DIP×DPI 换算，所以 100% 下 367×352 物理、150% 下 550×528 物理，观感与 winver 一致（旧版曾把 550×528 当 DIP 再乘缩放，导致 150% 下窗口大 1.5 倍，v1.4 已修） |
 | 不可缩放 | `OverlappedPresenter.IsResizable = false` |
 | 不可最大化 | `OverlappedPresenter.IsMaximizable = false` |
 | 不可最小化 | `OverlappedPresenter.IsMinimizable = false`（winver 标题栏上也只有一个关闭按钮） |
@@ -570,7 +571,8 @@ unpackaged 运行时它一直是系统那个通用的"应用"占位图。
   注意用的是 `Assets\MineSweeper2.0.ico`（9 帧）而不是仓库根目录那份单帧原图——
   后者缩到 16×16 会发虚。
 - **头像先缩小再随包分发**：原图 1448×1448（2.4 MB / 1.3 MB），页面上只按 60 DIP 显示，
-  所以已缩到 **256×256**（163 KB / 103 KB）；原图留在仓库根目录，不参与构建。
+  所以已缩到 **256×256**（163 KB / 103 KB）；贡献者 LLJ99999 的原图 1447×1449（791 KB）同样
+  居中裁成正方形后缩到 **256×256**（约 80 KB）。原图不参与构建。
 - **头像用文件路径加载，不走 ms-appx**：unpackaged 下 ms-appx 不可靠（做通知图标时踩过这个坑）；
   圆形头像用 `Border` + `CornerRadius` + `ImageBrush`（WinUI 的 `RectangleGeometry` 没有圆角属性）。
 

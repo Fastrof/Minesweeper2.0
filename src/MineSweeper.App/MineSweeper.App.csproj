@@ -71,6 +71,10 @@
     <Content Include="Assets\Authors\Shinichi.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- 贡献者头像（v1.4：官方网页设计 LLJ99999；原图 1447×1449 缩到 256×256） -->
+    <Content Include="Assets\Authors\LLJ99999.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

@@ -146,6 +146,31 @@
 
             <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
 
+            <!-- 贡献者（v1.4）：官方网页由 LLJ99999 重新设计。刻意没有 Tapped 事件，不参与任何彩蛋。 -->
+            <TextBlock FontSize="14" FontWeight="SemiBold" Text="贡献者" />
+
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Border Width="60" Height="60" CornerRadius="30">
+                    <Border.Background>
+                        <ImageBrush x:Name="ContributorAvatarBrush" Stretch="UniformToFill" />
+                    </Border.Background>
+                </Border>
+                <StackPanel
+                    MaxWidth="255"
+                    VerticalAlignment="Center"
+                    Spacing="2">
+                    <TextBlock FontSize="17" FontWeight="SemiBold" Text="LLJ99999" />
+                    <TextBlock FontSize="12" Text="贡献者 · 在校大学生" />
+                    <TextBlock
+                        FontSize="11"
+                        Opacity="0.7"
+                        Text="Minesweeper 2.0 官方网页全新重新设计"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </StackPanel>
+
+            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" />
+
             <StackPanel Spacing="3">
                 <TextBlock x:Name="FooterText" FontSize="12" TextWrapping="Wrap" />
                 <TextBlock

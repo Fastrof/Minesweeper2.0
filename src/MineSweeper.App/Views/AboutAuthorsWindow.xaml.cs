@@ -59,6 +59,7 @@ public sealed partial class AboutAuthorsWindow : Window
         LoadContent();
         LoadAvatar(PrimaryAvatarBrush, "Fastrof.png");
         LoadAvatar(SecondaryAvatarBrush, "Shinichi.png");
+        LoadAvatar(ContributorAvatarBrush, "LLJ99999.png");
     }
 
     private void LoadContent()
