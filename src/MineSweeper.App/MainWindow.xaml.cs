@@ -345,7 +345,9 @@ public sealed partial class MainWindow : Window
             VolumeSlider.Value = Math.Round(settings.AudioVolume * 100);
             _sound.Apply(settings.AudioEnabled, settings.AudioVolume);
 
-                
+            // v1.5：无猜开关持久化（旧 settings.json 没有这个键时默认关闭）
+            NoGuessSwitch.IsOn = settings.NoGuess;
+
             int index = IndexOfTheme(settings.ThemeId);
             ThemeCombo.SelectedIndex = index >= 0 ? index : 0;
         }
@@ -410,6 +412,25 @@ public sealed partial class MainWindow : Window
         _storage.Settings.AudioEnabled = AudioToggle.IsOn;
         _sound.Apply(_storage.Settings.AudioEnabled, _storage.Settings.AudioVolume);
         SaveSettings();
+    }
+
+    /// <summary>
+    /// 无猜开关（v1.5）：只影响下一局（当前局已经布雷，不能中途换盘），但开关状态会被记住。
+    /// </summary>
+    private void OnNoGuessToggled(object sender, RoutedEventArgs e)
+    {
+        if (!_settingsReady)
+        {
+            return;
+        }
+
+        _storage.Settings.NoGuess = NoGuessSwitch.IsOn;
+        SaveSettings();
+
+        _notifier.Publish(GameNotification.QuietInfo(
+            Strings.Get("noguess.settings.title"),
+            Strings.Get(NoGuessSwitch.IsOn ? "noguess.settings.on" : "noguess.settings.off"),
+            "settings.noguess"));
     }
 
     private void OnVolumeChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
@@ -543,7 +564,8 @@ public sealed partial class MainWindow : Window
         GameMode.ClassicWithItems,
         FirstClickOpening: FirstClickOpeningSwitch.IsOn,
         PauseTimerOnFocusLoss: PauseTimerSwitch.IsOn,
-        LockedBoard: false);   // v1.1：普通模式恒为 false（锁定能力只留给关卡固定盘与分享串复现）
+        LockedBoard: false,    // v1.1：普通模式恒为 false（锁定能力只留给关卡固定盘与分享串复现）
+        NoGuess: NoGuessSwitch.IsOn);   // v1.4：无猜模式
 
     private int? TryReadSeed()
         => int.TryParse(SeedBox.Text?.Trim(), out int seed) ? seed : null;
@@ -673,6 +695,16 @@ public sealed partial class MainWindow : Window
             _history.BeginGame(_sessionStartedAt.Value);
             _historyStore.Save(_history);
             UpdateItemSlots();
+
+            // v1.5：无猜模式请求了、但这张盘没能保证（太大/雷太密抽不到）时明确告诉玩家，
+            // 否则他会以为"无猜"没生效。只在开局第一次翻开时提示一次。
+            if (started.Board.NoGuessRequested && !started.Board.NoGuessGuaranteed)
+            {
+                _notifier.Publish(GameNotification.Info(
+                    Strings.Get("noguess.notGuaranteed.title"),
+                    Strings.Get("noguess.notGuaranteed.body"),
+                    "noguess.fallback"));
+            }
         }
         ViewModel.Refresh();
         UpdateMagnifierSlot();
@@ -2030,7 +2062,8 @@ public sealed partial class MainWindow : Window
             previous.Settings.Mode,
             previous.Settings.FirstClickOpening,
             previous.Settings.PauseTimerOnFocusLoss,
-            previous.Locked);
+            previous.Locked,
+            previous.Settings.NoGuess);
 
         int width = previous.Board.Width;
         int height = previous.Board.Height;
@@ -2159,7 +2192,8 @@ public sealed partial class MainWindow : Window
                 current.Settings.Mode,
                 current.Settings.FirstClickOpening,
                 current.Settings.PauseTimerOnFocusLoss,
-                current.Locked);
+                current.Locked,
+                current.Settings.NoGuess);
 
             if (!ViewModel.StartNewGame(
                     options,

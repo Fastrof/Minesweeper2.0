@@ -355,6 +355,8 @@ public sealed class GameSession
         }
 
         board.UsedExtendedSafeZone = snapshot.UsedExtendedSafeZone;
+        board.NoGuessRequested = snapshot.NoGuess;
+        board.NoGuessGuaranteed = snapshot.NoGuess && Solver.LogicSolver.CanSolveWithoutGuessing(board, snapshot.FirstClickIndex);
 
         var session = new GameSession(board, settings, inventory, clock ?? SystemClock.Instance, snapshot.Seed, difficultyId, snapshot.Locked);
         GrantInitialGiftIfItemsAvailable(session);
@@ -392,7 +394,7 @@ public sealed class GameSession
     {
         session = null;
 
-        if (!BoardSnapshot.TryParseShareCode(shareCode, out int width, out int height, out int mines, out int seed, out int firstClick, out bool usedExtendedSafeZone, out bool locked))
+        if (!BoardSnapshot.TryParseShareCode(shareCode, out int width, out int height, out int mines, out int seed, out int firstClick, out bool usedExtendedSafeZone, out bool locked, out bool noGuess))
         {
             error = "分享串格式不对，应当形如 16x16:40:123456:77:1。";
             return false;
@@ -402,6 +404,7 @@ public sealed class GameSession
         {
             Mode = mode,
             FirstClickOpening = usedExtendedSafeZone,
+            NoGuess = noGuess && !locked,
         };
 
         // 锁定盘面：雷位与首点都由 seed 决定，所以重建之后要校验首点确实一致
@@ -476,7 +479,25 @@ public sealed class GameSession
             Board.GetMineIndexes())
         {
             Locked = Locked,
+            NoGuess = Board.NoGuessRequested,
         };
+    }
+
+    // ---------------------------------------------------------------- 提示（v1.4）
+
+    /// <summary>
+    /// 提示：只根据已翻开的数字推出一个肯定安全的未翻开格，<b>不改动盘面、不计时、不算道具</b>。
+    /// 推不出（局面确实要猜，或者还没开局 / 已经结束）时返回 -1。
+    /// 不信任玩家插的旗，所以旗插错也不会被误导。
+    /// </summary>
+    public int FindHint()
+    {
+        if (IsFinished || !Board.MinesPlaced || Status == GameStatus.NotStarted)
+        {
+            return -1;
+        }
+
+        return Solver.LogicSolver.FindSafeCell(Board);
     }
 
     // ---------------------------------------------------------------- 翻开

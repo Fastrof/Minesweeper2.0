@@ -50,6 +50,15 @@ public sealed class Board
     /// <summary>布雷时是否用上了 5×5 扩展安全区（见 <see cref="BoardGenerator"/>）。</summary>
     public bool UsedExtendedSafeZone { get; internal set; }
 
+    /// <summary>本局是否请求了无猜模式（v1.4）。</summary>
+    public bool NoGuessRequested { get; internal set; }
+
+    /// <summary>
+    /// 本盘是否经推理器验证"从首点出发全程不用猜"（v1.4）。
+    /// 请求了无猜但棋盘太大（&gt; <see cref="Solver.LogicSolver.NoGuessMaxCells"/>）或雷太密抽不到时为 false。
+    /// </summary>
+    public bool NoGuessGuaranteed { get; internal set; }
+
     internal Cell[] RawCells => _cells;
 
     // ---------- 坐标换算 ----------

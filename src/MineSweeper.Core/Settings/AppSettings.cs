@@ -13,7 +13,7 @@ namespace MineSweeper.Core.Settings;
 public sealed class AppSettings
 {
     /// <summary>当前 schema 版本。改结构时 +1 并补迁移。</summary>
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     [JsonPropertyName("schemaVersion")]
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
@@ -92,6 +92,14 @@ public sealed class AppSettings
     /// </summary>
     [JsonPropertyName("uiTheme")]
     public string UiTheme { get; set; } = Themes.UiThemeCatalog.DefaultId;
+
+    /// <summary>
+    /// 无猜模式（v1.5，默认关闭）：开启后普通开局只发"从首点出发全程可纯逻辑推完"的盘面。
+    /// 关卡模式使用固定锁定盘，不受这个开关影响。纯新增字段（默认 false），
+    /// 所以旧 settings.json 读进来不需要额外迁移逻辑（schemaVersion 仍升到 2 以标记结构变化）。
+    /// </summary>
+    [JsonPropertyName("noGuess")]
+    public bool NoGuess { get; set; }
 
     /// <summary>默认设置。</summary>
     public static AppSettings CreateDefault() => new();

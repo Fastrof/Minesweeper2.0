@@ -35,6 +35,12 @@ public sealed record GameSettings
     /// </summary>
     public bool ChoiceRewards { get; set; }
 
+    /// <summary>
+    /// 无猜模式（v1.4，默认关闭）：布雷后用 <see cref="Solver.LogicSolver"/> 验证整盘可纯逻辑推完，
+    /// 不行就重抽。只影响普通开局；关卡的锁定盘面不受影响（同一关永远同一张盘）。
+    /// </summary>
+    public bool NoGuess { get; init; }
+
     /// <summary>窗口失焦时是否暂停计时（附录 A-4，默认不暂停，保持原版行为）。</summary>
     public bool PauseTimerOnFocusLoss { get; init; }
 

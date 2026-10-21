@@ -24,6 +24,12 @@ public static class BoardGenerator
     /// <summary>首点扩展安全区半径 2 → 5×5（25 格）。</summary>
     private const int ExtendedSafeRadius = 2;
 
+    /// <summary>
+    /// 无猜模式最多重抽多少张盘（v1.4）。高级 30×16/99 雷平均几十次内就能抽到，
+    /// 雷特别密的自定义盘可能一直抽不到，这时退回普通盘并把 <see cref="Board.NoGuessGuaranteed"/> 置为 false。
+    /// </summary>
+    public const int NoGuessMaxAttempts = 2000;
+
     /// <summary>判断某格是否落在首点安全区内（切比雪夫距离 ≤ radius）。</summary>
     public static bool IsInSafeZone(Board board, int firstClickIndex, int index, int radius)
     {
@@ -89,11 +95,40 @@ public static class BoardGenerator
             return false;
         }
 
-        PlaceMinesBySelectionSampling(board, firstClickIndex, radius, random);
-        ComputeAdjacentMines(board);
+        bool noGuess = settings.NoGuess && board.CellCount <= Solver.LogicSolver.NoGuessMaxCells;
+        int attempts = noGuess ? NoGuessMaxAttempts : 1;
+        bool solvable = false;
+
+        for (int attempt = 0; attempt < attempts; attempt++)
+        {
+            if (attempt > 0)
+            {
+                board.ClearAllState();
+                board.MinesPlaced = false;
+            }
+
+            PlaceMinesBySelectionSampling(board, firstClickIndex, radius, random);
+            ComputeAdjacentMines(board);
+
+            if (!noGuess)
+            {
+                break;
+            }
+
+            // 无猜模式（v1.4）：只接受"从首点出发全程可纯逻辑推完"的盘；不行就用同一个 Random 继续抽下一张。
+            // 同一个 seed + 同一个首点仍然得到同一张盘（重试序列也是确定的），分享串照样能复现。
+            board.MinesPlaced = true;
+            if (Solver.LogicSolver.CanSolveWithoutGuessing(board, firstClickIndex))
+            {
+                solvable = true;
+                break;
+            }
+        }
 
         board.FirstClickIndex = firstClickIndex;
         board.UsedExtendedSafeZone = radius == ExtendedSafeRadius;
+        board.NoGuessRequested = settings.NoGuess;
+        board.NoGuessGuaranteed = solvable;
         board.MinesPlaced = true;
 
         error = null;

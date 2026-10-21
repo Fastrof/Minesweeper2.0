@@ -402,7 +402,9 @@ Text="列出瞄准/透视区域的坐标与内容，便于无障碍与截图分�
                         Text="上限：4096×4096；雷数 ≤ 总格数 − 9（首点 3×3 安全区，§0.1）。参数非法时会明确报错并拒绝开局。"
                         TextWrapping="Wrap" />
 
-                    <StackPanel Orientation="Horizontal" Spacing="16">
+                    <!-- v1.5：三个开关改为纵向排列。以前两个开关塞在同一行还能放下，
+                         加上「无猜模式」后第三个会被挤出可视区（实测高度 0），所以改成三行。 -->
+                    <StackPanel Orientation="Vertical" Spacing="2">
                         <ToggleSwitch
                             x:Name="FirstClickOpeningSwitch"
                             Header="首点扩展安全区（5×5，手感更接近现代复刻）"
@@ -411,6 +413,11 @@ Text="列出瞄准/透视区域的坐标与内容，便于无障碍与截图分�
                             x:Name="PauseTimerSwitch"
                             Header="窗口失焦时暂停计时"
                             IsOn="False" />
+                        <ToggleSwitch
+                            x:Name="NoGuessSwitch"
+                            Header="无猜模式（保证全程可纯逻辑推理，不用赌运气）"
+                            IsOn="False"
+                            Toggled="OnNoGuessToggled" />
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Spacing="8">

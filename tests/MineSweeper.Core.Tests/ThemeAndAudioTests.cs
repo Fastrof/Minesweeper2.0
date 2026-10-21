@@ -243,6 +243,38 @@ public sealed class ThemeAndAudioTests
         Assert.Equal(BoardPalette.ClassicId, result.Settings.ThemeId);
     }
 
+    /// <summary>v1.5：无猜开关是纯新增字段（默认关），读写往返不能丢。</summary>
+    [Fact]
+    public void 无猜开关默认关且随设置往返()
+    {
+        Assert.False(AppSettings.CreateDefault().NoGuess);
+
+        string path = TestPaths.NewFile("settings.json");
+        var store = new AppSettingsStore(path);
+        AppSettings settings = AppSettings.CreateDefault();
+        settings.NoGuess = true;
+        store.Save(settings);
+
+        SettingsLoadResult loaded = store.Load();
+        Assert.Equal(SettingsLoadStatus.Loaded, loaded.Status);
+        Assert.True(loaded.Settings.NoGuess);
+        Assert.Equal(AppSettings.CurrentSchemaVersion, loaded.Settings.SchemaVersion);
+    }
+
+    /// <summary>v1.5：旧 settings.json（schema 1、没有 noGuess 键）迁移后无猜为关，不白屏。</summary>
+    [Fact]
+    public void 旧设置缺少无猜字段时迁移为关闭()
+    {
+        string path = TestPaths.NewFile("settings.json");
+        File.WriteAllText(path, """{ "schemaVersion": 1, "audioEnabled": true }""");
+
+        SettingsLoadResult result = new AppSettingsStore(path).Load();
+
+        Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
+        Assert.False(result.Settings.NoGuess);
+        Assert.Equal(AppSettings.CurrentSchemaVersion, result.Settings.SchemaVersion);
+    }
+
     [Fact]
     public void 损坏的设置降级重建并保留备份()
     {
