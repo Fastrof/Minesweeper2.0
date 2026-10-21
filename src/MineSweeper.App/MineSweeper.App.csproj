@@ -37,7 +37,7 @@
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <SelfContained>false</SelfContained>
-    <PublishProfile>win-x64</PublishProfile>
+    <!-- 发布时用 -r win-x64 指定 RID；这里不设 PublishProfile（没有该文件，会触发 NETSDK1198 警告） -->
   </PropertyGroup>
 
   <ItemGroup>

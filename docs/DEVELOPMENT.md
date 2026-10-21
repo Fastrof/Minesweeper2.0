@@ -1085,7 +1085,9 @@ git push -u origin main
 
 1. **先改版本号 6 处**（见 §12.4）并跑一遍 `test.cmd`。
 2. **选清单（双身份）**：`artifacts/msix/manifests/` 下有两套——商店用 `AppxManifest.store.xml`
-   （`Identity Name=ZackStudio.Minesweeper2.0`、`Publisher=CN=CB6927D3-B186-4563-A188-666FAEA221D0`），
+   （`Identity Name=ZackStudio.Minesweeper2.0`、`Publisher=CN=CB6927D3-B186-4563-A18B-666FAEA221D0`，
+   **以 `signing/Minesweeper2.0-store-test.cer` 的 Subject 为准**；旧版 manifests 里曾把 A18B 误写成 A188，
+   打包前务必用 `certutil -dump` 核对），
    GitHub 侧载用 `AppxManifest.sideload.xml`（`Publisher=CN=Fastrof、Shinichi`）。
    两套的 `Publisher` **必须与签名证书 Subject 完全一致**，否则安装报 `0x800B0109`。
    源码树里对应的项目内清单是 `Package.store.appxmanifest.xml` / `Package.sideload.appxmanifest.xml`。
