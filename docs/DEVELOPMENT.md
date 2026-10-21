@@ -554,7 +554,7 @@ unpackaged 运行时它一直是系统那个通用的"应用"占位图。
 
 | 项 | 做法 |
 |---|---|
-| 尺寸 | 实测 winver：**150% 缩放下外框 550×528 物理像素**（可视 536×521），即 **367×352 DIP**。`AppWindow.Resize` 按 DIP×DPI 换算，所以 100% 下 367×352 物理、150% 下 550×528 物理，观感与 winver 一致（旧版曾把 550×528 当 DIP 再乘缩放，导致 150% 下窗口大 1.5 倍，v1.4 已修） |
+| 尺寸 | 实测 winver（System DPI aware）：**系统 DPI 96（100%）下外框 550×528 物理像素**，即 **550×528 DIP**；150% 下是 825×792 物理。`AppWindow.Resize` 按 DIP×DPI 换算，所以各缩放比例下都与 winver 的物理尺寸一致（v1.4 曾误把 550×528 当成 150% 下的物理尺寸，改成 367×352 DIP，导致 100% 下窗口只有 winver 的 2/3；v1.5.1 已修回 550×528） |
 | 不可缩放 | `OverlappedPresenter.IsResizable = false` |
 | 不可最大化 | `OverlappedPresenter.IsMaximizable = false` |
 | 不可最小化 | `OverlappedPresenter.IsMinimizable = false`（winver 标题栏上也只有一个关闭按钮） |
