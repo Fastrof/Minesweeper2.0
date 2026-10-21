@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MineSweeper.App.Services;
@@ -20,7 +20,7 @@ namespace MineSweeper.App.ViewModels;
 /// <param name="FirstClickOpening">首点是否用扩展安全区（A-2）。</param>
 /// <param name="PauseTimerOnFocusLoss">失焦是否暂停计时（A-4）。</param>
 /// <param name="LockedBoard">是否锁定盘面（§2.6）。</param>
-/// <param name="NoGuess">无猜模式（v1.4）：只发"全程可纯逻辑推完"的盘；默认关，旧调用点不用改。</param>
+/// <param name="NoGuess">无猜模式（v1.5）：只发"全程可纯逻辑推完"的盘；默认关，旧调用点不用改。</param>
 public sealed record GameStartOptions(
     GameMode Mode,
     bool FirstClickOpening,

@@ -40,7 +40,7 @@
 
 ```bat
 build.cmd     :: 编译整个解决方案（x64），0 警告 0 错误
-test.cmd      :: 跑 Core 层单测（360 个）
+test.cmd      :: 跑 Core 层单测（385 个，以 test.cmd 输出为准）
 run.cmd       :: 启动游戏（unpackaged，存档在 %LOCALAPPDATA%\MineSweeper2）
 ```
 
@@ -93,6 +93,8 @@ MineSweeper2.sln
 │   │   ├── ChordSolver.cs           # §2.4 chord 判定与目标收集
 │   │   ├── GameSession.cs           # §1.3 单局状态机 + 改动区间回传 + 分享串复现
 │   │   ├── BoardSnapshot.cs         # §6.3 盘面快照与种子分享串
+│   │   ├── Solver/
+│   │   │   └── LogicSolver.cs       # v1.5 无猜推理器：单格 / 双格差值 / 全局雷数（只看已翻开信息）
 │   │   ├── PlayerProgress.cs        # §5.7 跨局进度（schemaVersion + 驼峰键名）
 │   │   ├── IClock.cs                # 时钟抽象（测试注入 ManualClock）
 │   │   ├── Notifications/
@@ -156,7 +158,7 @@ MineSweeper2.sln
 │       ├── Services/ToastNotifier.cs# 通知出口：Windows Toast + 级别映射 + 限流
 │       ├── Services/SoundPlayer.cs  # 音效出口：首次合成 wav 到 %LOCALAPPDATA%\MineSweeper2\sounds\ 并播放
 │       └── app.manifest             # DPI 感知
-└── tests/MineSweeper.Core.Tests/    # xUnit；§8 的 10 条用例 + 回归 + 主题/音效 + 关卡 + 通知 + 成就/更新/双语 = 360 个测试（20 个测试文件）
+└── tests/MineSweeper.Core.Tests/    # xUnit；§8 的 10 条用例 + 回归 + 主题/音效 + 关卡 + 通知 + 成就/更新/双语 + 无猜 = 385 个测试（21 个测试文件，逐文件数字以 test.cmd 输出为准）
 ```
 
 > 运行时会额外生成（**不属于源码**，也不需要提交）：`%LOCALAPPDATA%\MineSweeper2\`
@@ -354,7 +356,8 @@ App 层只负责映射成 `Windows.UI.Color` 交给渲染器。渲染器不再�
 普通模式"首点后才布雷"，所以**同 seed 换个首点就是另一张盘**。锁定盘面先按 seed 在全盘均匀布雷、
 再从中心向外取一个安全首点（找不到就把安全区内的雷搬出去，**雷数不变**），于是**同 seed 必定同盘**。
 
-- 设置面板有开关；分享串多一节 `:1` 表示锁定，解析兼容旧的 5 节格式。
+- 设置面板有开关；分享串多一节 `:1` 表示锁定，解析兼容旧的 5 节格式。无猜盘（v1.5）写成 **7 节**：
+  `宽x高:雷数:种子:首点:扩展:锁定(0/1):1`，旧 5 / 6 节格式仍可解析。
 - **开局不替玩家翻开首点**：雷位在创建时就按 seed 定好，但棋盘保持整盘未翻开、计时为 0，
   等玩家自己点第一下。因为锁定盘面的雷位不能像普通模式那样"围着首点布雷"，
   所以**首次翻开会被钉到开局就算好的那格安全点上**——玩家点哪一格都行，结果都是从安全点展开，
@@ -674,7 +677,7 @@ unpackaged 运行时它一直是系统那个通用的"应用"占位图。
 | （文档未涉及）关卡制 | `Core/Levels/*` + `MainWindow` 关卡面板/目标条/结算 | ✅ 新增玩法，见 §6.10 |
 | （文档未涉及）关于页面 | `AboutInfo.cs` / `AboutText.cs` + `Views/About*Window` 两个固定尺寸小窗口 | ✅ 见 §6.11 |
 | §7.1 打包 | 已产出 MSIX，商店版已上架（`artifacts/msix` 里有双身份清单、签名证书与商店素材；源码树本身仍是 `WindowsPackageType=None` 的 unpackaged 工程，打包走 §12.5 的手工流程） | ✅ 见 §12.5 |
-| §8 测试计划 | `tests/MineSweeper.Core.Tests`（360 个测试，20 个测试文件 + `TestFactory.cs`） | ✅ 全绿 |
+| §8 测试计划 | `tests/MineSweeper.Core.Tests`（385 个测试，21 个测试文件 + `TestFactory.cs`；逐文件数字以 `test.cmd` 输出为准） | ✅ 全绿 |
 
 ---
 
@@ -696,15 +699,17 @@ unpackaged 运行时它一直是系统那个通用的"应用"占位图。
 ## 9. 测试
 
 ```bat
-test.cmd          :: 360 个测试，约 1 秒
+test.cmd          :: 385 个测试，约 1 秒（逐文件数字以 test.cmd 输出为准）
 ```
 
-**360 个用例分布在 20 个测试文件里**（`tests/MineSweeper.Core.Tests/`）。本轮新增的 17 条用例分散在
-`ItemTests` / `PersistenceTests` / `UpdateTests` / `AreaShapeAndCoinTests` / `HistoryTests` 里（文件数仍是 20）；
+**385 个用例分布在 21 个测试文件里**（`tests/MineSweeper.Core.Tests/`，另有 `TestFactory.cs` 提供共用构造）。
+v1.5 的无猜用例集中在**新增的** `NoGuessTests.cs`（文件数 20 → 21）；v1.4 的 17 条仍在
+`ItemTests` / `PersistenceTests` / `UpdateTests` / `AreaShapeAndCoinTests` / `HistoryTests` 里。
 **项目里没有逐文件的精确数字，以 `test.cmd` 的输出为准**，下面按文件列覆盖范围：
 
 - `AchievementTests.cs` — 成就目录守门人、判定边界、隐藏成就、进度只增不减、存档降级
 - `LevelTests.cs` — 关卡制（**关卡表的守门人** + 星级 + 解锁 + 存档 + 会话内关卡 + 翻开全部安全格判胜 + 前后跳转与链表边界）
+- `NoGuessTests.cs` — 无猜模式：三条推理规则（单格 / 双格差值 / 全局雷数）、不偷看未翻开格、同种子同盘、2000 次重抽上限与超 1 万格退回普通盘、`FindHint` 提示、7 节分享串与快照重开
 - `UpdateTests.cs` / `UpdatePreferencesTests.cs` / `UpdateDownloadTests.cs` — 版本比较与规范化、GitHub JSON 容错、更新频率与暂停、选包与 SHA256 校验
 - `ThemeAndAudioTests.cs` — 主题调色板、设置存取、音效合成
 - `ItemTests.cs` — 道具计数与发放、商店购买、金币与库存（§8 第 7、8 条）
@@ -899,6 +904,7 @@ test.cmd          :: 360 个测试，约 1 秒
   产物、双身份清单、签名证书与商店素材都在 `artifacts/msix`（发版流程见 §12.5）
   - "通知表头小图标"随之解决：打包版由包清单的 `uap:VisualElements` 提供（§6.8）
 - 撤销/回退（A-6，首版按文档建议不做）
+- 无猜模式的提示接口 `GameSession.FindHint()` 已在 Core 提供，**UI 尚未接**（见 §15）
 - `themeOverrides` 支持逐项覆盖全部 19 个颜色键（含数字八色 `number1`..`number8`）；没有"整套调色板导入/导出"功能
 - 远景热力图按设计会泄露未翻开区域的雷密度，只作辅助视图；若要用于正式对局需另行设计"只看已知信息"的版本
 - 若 Win2D 后续出问题，按 §1.2.1 切 `SkiaSharp.Views.WinUI`（Plan B），Core 层无需改动
@@ -915,7 +921,7 @@ test.cmd          :: 360 个测试，约 1 秒
 | 项 | 状态 |
 |---|---|
 | 构建 | `build.cmd` → **0 警告 0 错误**（x64） |
-| 测试 | `test.cmd` → **360 / 360 通过**，约 1 秒 |
+| 测试 | `test.cmd` → **385 / 385 通过**，约 1 秒（逐文件数字以 `test.cmd` 输出为准） |
 | 运行 | unpackaged 双击 exe 即可（见 §2.1）；另有 MSIX 包并已上架 Microsoft Store（§12.5） |
 | 开发文档进度 | A / B / D 类已全部落地；C 类（如把 `BoardView` 里的输入逻辑拆成 `Input/`）未做；MSIX 打包已完成 |
 | 已知限制 | 通知表头小图标改不动（§6.8）；热力图会泄露雷密度所以默认关闭（§6.4） |
@@ -934,6 +940,7 @@ MineSweeper.App    WinUI 3 + Win2D → 只负责显示与输入，不含游戏�
 | 想改什么 | 该动哪里 |
 |---|---|
 | 布雷 / 首点安全 / 锁定盘面 | `Core/BoardGenerator.cs` |
+| 无猜生成 / 提示 | `Core/Solver/LogicSolver.cs`（生成时的验证与重抽在 `Core/BoardGenerator.cs`，对外在 `GameSession.FindHint`） |
 | 翻开的连锁反应 | `Core/FloodFill.cs`（**迭代实现，不要改成递归**） |
 | chord / 胜负 / 计时 | `Core/GameSession.cs`、`Core/ChordSolver.cs` |
 | 关卡数值（盘面 / 雷数 / 星级门槛） | `Core/Levels/LevelTable.cs`（**只改这一张表**） |
@@ -994,6 +1001,9 @@ MineSweeper.App    WinUI 3 + Win2D → 只负责显示与输入，不含游戏�
 
 结果都写进 `%LOCALAPPDATA%\MineSweeper2\app.log`，前缀分别是 `[LEVELCHECK]` / `[NOTIFYCHECK]` / `[ABOUTCHECK]` / `[ABOUT]` / `[SHOPCHECK]` / `[MAGCHECK]` / `[UICHECK]`。
 
+> **v1.5 没有新增 `SAOLEI_*` 诊断钩子**：无猜模式直接在设置面板里开关即可验证（配合 `SAOLEI_PRESET` 指定盘面）；
+> 生成是否真的"无猜"由 `NoGuessTests.cs` 覆盖（`NoGuessRequested` / `NoGuessGuaranteed` 两个标志）。
+>
 > 为什么会有这些钩子：开发机上**合成鼠标/键盘输入送不进应用**（前台锁定 / UIPI），
 > 所以端到端验证只能靠它。它们走的是和真人操作**完全一样**的代码路径，只有"点下去"这一步不同。
 > **接手后如果有正常的交互环境，这些开关留着无妨，删掉也可以。**
@@ -1032,7 +1042,7 @@ MineSweeper.App    WinUI 3 + Win2D → 只负责显示与输入，不含游戏�
 | 根目录 | `MineSweeper2.sln`、`Directory.Build.props`、`Directory.Packages.props`、`build.cmd`/`run.cmd`/`test.cmd`、`.gitignore`、`README.md`、`MineSweeper2.0.ico`（图标原图，不参与构建） |
 | `src\MineSweeper.Core\` | 整个目录：核心逻辑层（零 UI 依赖）+ `Audio/` `History/` `Items/` `Levels/` `Notifications/` `Persistence/` `Settings/` `Themes/` |
 | `src\MineSweeper.App\` | 整个目录：WinUI 3 外壳 + `Rendering/` `Services/` `ViewModels/` `Views/` + `Assets/`（**4 个运行时资源必须带**：`MineSweeper2.0.ico`、`ToastIcon.png`、`Authors\Fastrof.png`、`Authors\Shinichi.png`） |
-| `tests\MineSweeper.Core.Tests\` | 整个目录：360 个测试（20 个测试文件），是文档里所有质量数据的出处 |
+| `tests\MineSweeper.Core.Tests\` | 整个目录：385 个测试（21 个测试文件），是文档里所有质量数据的出处 |
 
 整个仓库**不含任何第三方图片与音频素材**（主题是矢量自绘、音效是代码合成），这也是工程的红线之一。
 
@@ -1068,12 +1078,12 @@ git push -u origin main
 
 ### 12.4 发布前还要确认
 
-- **版本号要一起改 6 处**：`src\MineSweeper.App\AboutInfo.cs` 的 `Version`（`1.4`）、
-  `MineSweeper.App.csproj` 的 `<Version>`（`1.4.0`）、MSIX 商店清单与侧载清单的 `Identity Version`（发版时写 `1.4.0.0`；
+- **版本号要一起改 6 处**：`src\MineSweeper.App\AboutInfo.cs` 的 `Version`（`1.5`）、
+  `MineSweeper.App.csproj` 的 `<Version>`（`1.5.0`）、MSIX 商店清单与侧载清单的 `Identity Version`（发版时写 `1.5.0.0`；
   `artifacts/msix` 里现存的是 1.0 / 1.3 的历史产物）、`README.md` 与 `README.en.md` 的版本行；
 - `AboutInfo.cs` 里另外两处：`RepositoryUrl` 已填、`License` 文案；
 - `WhatsNewCatalog` **最前面**加本版条目（`UpdatePreferencesTests` 有守门测试，漏加会红）；
-- `build.cmd` → 0 警告 0 错误；`test.cmd` → 360/360；
+- `build.cmd` → 0 警告 0 错误；`test.cmd` → 385/385（逐文件数字以 `test.cmd` 输出为准）；
 - 源码里**没有任何硬编码的绝对路径**（唯一的外部引用是 `MineSweeper.Core.Tests.csproj` 里指向 `..\..\src\` 的相对引用），
   所以别人 clone 到任意目录都能直接编译。
 
@@ -1083,7 +1093,8 @@ git push -u origin main
 > 命令里的参数（清单路径、证书、密码、版本号）以那些文件的实际值为准，不在这里写死。
 > `artifacts/` 已在 `.gitignore` 里排除，**不要提交**。
 
-已上架的商店页：**https://apps.microsoft.com/detail/9NKR2M2ZDDL3**（`artifacts/msix` 里有 1.0.0.0 与 1.3.0.0 两代包）。
+已上架的商店页：**https://apps.microsoft.com/detail/9NKR2M2ZDDL3**（`artifacts/msix` 里有 1.0.0.0 与 1.3.0.0 两代历史包；
+v1.5 按 §12.4 的版本号规则打 **1.5.0.0**）。
 
 1. **先改版本号 6 处**（见 §12.4）并跑一遍 `test.cmd`。
 2. **选清单（双身份）**：`artifacts/msix/manifests/` 下有两套——商店用 `AppxManifest.store.xml`
@@ -1113,8 +1124,8 @@ git push -u origin main
    `PosterArt-720x1080` / `PosterArt-1080x1920` / `StoreLogo-300x300`）。
    提交前确认商店清单里的 `DisplayName` / `Description` / `PublisherDisplayName` 与商店资料一致。
 8. **GitHub Release 线**：同一份代码用侧载清单 + GitHub 证书另打一个包，
-   产物与随包证书的成品格式见 `artifacts/msix/github/`（`Minesweeper2.0_1.3.0.0_x64_signed.msix` +
-   `MineSweeper2.0-GitHub.cer` + `INSTALL.md` / `安装说明.md`），一并挂到 Release 里。
+   产物与随包证书的成品格式见 `artifacts/msix/github/`（历史示例 `Minesweeper2.0_1.3.0.0_x64_signed.msix` +
+   `MineSweeper2.0-GitHub.cer` + `INSTALL.md` / `安装说明.md`；本轮按 **1.5.0.0** 命名），一并挂到 Release 里。
 9. **验证清单**：商店页可访问 → 能安装启动 → 通知/图标正常 → 存档落在包数据目录 → 卸载干净。
 
 ---
@@ -1496,3 +1507,56 @@ git push -u origin main
 - **界面颜色「跟随系统」**：以前只在启动时算一次窗口背景与棋盘底色，运行中切换 Windows 深浅色会"控件变了、背景没变"；现在订阅 `RootGrid.ActualThemeChanged` 实时刷新（显式浅色/深色不受影响）。
 - **自检不再污染主题设置**：`SAOLEI_UITHEME=light|dark|system` 只用于截图核对，`OnUiThemeChanged` 在强制模式下不再写 `settings.json`（否则自检时打开设置/切语言可能把临时主题永久保存）。
 - **实测**：`dotnet build MineSweeper2.sln -p:Platform=x64` → **0 警告 0 错误**；`dotnet test` → **360 / 360 通过、0 失败**。
+
+---
+
+## 15. v1.5 变更要点（无猜模式 + 官网重做）
+
+**无猜模式（设置面板新增开关，默认关）**
+
+- **实现位置**：推理器在 `Core/Solver/LogicSolver.cs`（448 行）；生成时的"验证 + 重抽"在
+  `Core/BoardGenerator.TryPlaceMines`；单局入口在 `Core/GameSession.cs`；设置字段是
+  `Core/GameSettings.NoGuess` 与 `Core/Settings/AppSettings.NoGuess`（`settings.json` 的 `noGuess`）。
+- **三条规则**（由弱到强，每轮先用便宜的；推出新信息后从头再来）：
+  1. **单格规则**：数字 − 周围已知雷 = 0 → 周围未知格全安全；= 未知邻格数 → 全是雷。
+  2. **双格差值规则**：两个数字格 A、B（未知邻域有交集），若 `need(B) − need(A)` 恰好等于
+     B 独有的未知格数，则 B 独有格全是雷、A 独有格全安全。**子集规则是它的特例**。
+  3. **全局雷数规则**：剩余雷数 = 0 → 所有未知格安全；= 未知格总数 → 全是雷。
+- **只依赖已翻开信息、不偷看**：模拟通关时只读"已翻开格的数字 + 总雷数"，
+  **从不检查未翻开格是不是雷**；只有被推理证明安全的格才会被"翻开"并读出它的数字，
+  和真人玩家能拿到的信息完全一致。
+- **连锁与提示**：模拟翻开 0 格时按游戏里同样的洪水填充连锁展开（迭代式，不递归）；
+  `LogicSolver.FindSafeCell` 复用同一套推理，只看已翻开数字、**不信任玩家插的旗**，
+  返回一个肯定安全的格，推不出返回 -1。
+- **首点安全区不变**：仍先按首点 3×3（`FirstClickOpening` 打开时 5×5）安全区布雷；
+  无猜只在布雷完成后验证，不改变首点规则。重抽用同一个 `Random` 继续抽，
+  所以**同 seed + 同首点 + 同开关 = 同一张盘**（重试序列本身也是确定的），分享串照样能精确复现。
+- **重抽上限与退回普通盘**：
+  - 最多重抽 **2000** 张（`BoardGenerator.NoGuessMaxAttempts`）；
+  - 棋盘超过 **10000** 格（`LogicSolver.NoGuessMaxCells`）时**不重抽**，直接按普通盘开局；
+  - 抽满 2000 张仍未抽到也退回普通盘；
+  - 两种情况都置 `Board.NoGuessRequested = true`、`Board.NoGuessGuaranteed = false`；
+    开局第一次翻开时弹一条「无猜模式：本局未能保证」提示（`noguess.notGuaranteed.*`），
+    避免玩家以为开关没生效。成功抽到时 `NoGuessGuaranteed = true`。
+- **关卡锁定盘不受影响**：关卡走 `TryPlaceMinesLocked`（固定 seed 的锁定盘），完全不经过无猜生成；
+  开关只作用于普通开局。无猜盘快照重开（`CreateReplay`）会带上 `NoGuess` 并重新验证一次保证标志。
+- **开关持久化**：设置面板「无猜模式」改变后立即写 `settings.json` 的 `noGuess`（`AppSettings.NoGuess`），
+  **下一局开始生效**（当前局已经布雷，不能中途换盘）；旧 settings.json 没有这个键时默认 `false`。
+- **提示接口（UI 尚未接）**：`GameSession.FindHint()` 已提供 —— 未开局 / 已结束返回 -1，
+  否则返回 `LogicSolver.FindSafeCell` 的结果；它**不改盘面、不计时、不算道具**。
+  当前**没有 UI 入口**（不在设置/物品栏/快捷键里），后续要接可直接调用。
+- **分享串 / 快照**：无猜盘写成 **7 节** `宽x高:雷数:种子:首点:扩展:锁定(0/1):1`，
+  第 7 节固定为 `1`；旧 5 节（非锁定）与 6 节（锁定）格式仍可解析。
+  `TryReplayShareCode` 会把 `settings.NoGuess = noGuess && !locked`，并用同一套生成规则复现；
+  `CaptureSnapshot().NoGuess = Board.NoGuessRequested`，所以「重打这一盘」仍是同一张无猜盘。
+- **性能**：推理器只在开局布雷时跑一次，不参与逐帧渲染；无猜前的 **383 条基线用例整套约 1 秒内跑完**，
+  加上新增用例后总耗时仍以 `test.cmd` 输出为准。
+- **测试**：新增 `tests/MineSweeper.Core.Tests/NoGuessTests.cs`（基线 23 条：三条规则、同种子同盘、
+  重抽上限与超 1 万格退回、`FindHint`、7 节分享串、快照重开）；设置开关持久化另有守门用例。
+  总用例数本文档按 **385** 记录（= 383 基线 + 预计 2 条设置用例），**最终以 `test.cmd` 输出为准**。
+
+**官网发布页视觉重做**
+
+- `docs/index.html` / `docs/en.html` 换成纸色底 + 格线 + 凸起按钮 + 商店徽章；
+  只动展示层（HTML/CSS/站点资源），不影响客户端行为与存档。
+- README / README.en 同步到 v1.5（无猜模式、测试数、版本行），并按同一套口径补一句官网视觉重做。

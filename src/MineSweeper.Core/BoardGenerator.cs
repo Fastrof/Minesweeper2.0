@@ -1,4 +1,4 @@
-namespace MineSweeper.Core;
+﻿namespace MineSweeper.Core;
 
 /// <summary>
 /// 布雷器（§2.2）。
@@ -25,7 +25,7 @@ public static class BoardGenerator
     private const int ExtendedSafeRadius = 2;
 
     /// <summary>
-    /// 无猜模式最多重抽多少张盘（v1.4）。高级 30×16/99 雷平均几十次内就能抽到，
+    /// 无猜模式最多重抽多少张盘（v1.5）。高级 30×16/99 雷平均几十次内就能抽到，
     /// 雷特别密的自定义盘可能一直抽不到，这时退回普通盘并把 <see cref="Board.NoGuessGuaranteed"/> 置为 false。
     /// </summary>
     public const int NoGuessMaxAttempts = 2000;
@@ -115,7 +115,7 @@ public static class BoardGenerator
                 break;
             }
 
-            // 无猜模式（v1.4）：只接受"从首点出发全程可纯逻辑推完"的盘；不行就用同一个 Random 继续抽下一张。
+            // 无猜模式（v1.5）：只接受"从首点出发全程可纯逻辑推完"的盘；不行就用同一个 Random 继续抽下一张。
             // 同一个 seed + 同一个首点仍然得到同一张盘（重试序列也是确定的），分享串照样能复现。
             board.MinesPlaced = true;
             if (Solver.LogicSolver.CanSolveWithoutGuessing(board, firstClickIndex))

@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>扫雷 2.0 / MineSweeper 2.0 —— 从零手写的 Windows 扫雷</title>
 <meta name="description" content="扫雷 2.0 是一个从零手写的 Windows 扫雷：经典玩法 100% 还原，另有 6 章 36 关关卡模式、三种道具、金币商店、19 色可调主题与代码合成音效。零第三方素材；仅在检查更新时访问 GitHub 公开接口（可在设置关闭），不收集任何数据。">
-<meta name="theme-color" content="#070d18">
-<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#f3efe6">
+<meta name="color-scheme" content="light">
 
 <!-- 社交分享 -->
 <meta property="og:type" content="website">
@@ -70,7 +70,7 @@
         </div>
 
         <ul class="hero-stats">
-          <li>360 个单元测试全绿</li>
+          <li>385 个单元测试全绿</li>
           <li>构建 0 警告 0 错误</li>
           <li>零第三方图片与音频</li>
         </ul>
@@ -154,6 +154,12 @@
           <div class="ico" aria-hidden="true">🛒</div>
           <h3>金币商店（v1.4）</h3>
           <p>每扫出一颗雷得 <b>1 金币</b>；棋盘右上角「🛒 商店」随时打开，放大镜 30 / 声呐扫描 20 / 时间冻结 20。金币与买到的道具<b>只在本局有效</b>，每局（每关）从 0 开始。</p>
+        </article>
+
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">🧠</div>
+          <h3>无猜模式（v1.5）</h3>
+          <p>开启后普通开局只发<b>全程可纯逻辑推完</b>的盘面：从首点开始每一步都有确定的推理，<b>不用赌运气</b>。默认关闭，超大或极密的盘会自动退回普通盘。</p>
         </article>
 
         <article class="card reveal">
@@ -345,7 +351,7 @@
         </article>
         <article class="card reveal">
           <div class="ico" aria-hidden="true">✅</div>
-          <h3>360 个单元测试</h3>
+          <h3>385 个单元测试</h3>
           <p>关卡表的守门人、布雷与参数边界、1000×1000 全空盘不栈溢出、原子写盘与损坏降级、波形互不相同……全部可无 UI 回归，约 1 秒跑完。</p>
         </article>
         <article class="card reveal">
@@ -381,15 +387,19 @@
         <article class="dl-card reveal">
           <h3>🏬 Microsoft Store</h3>
           <p>最省事：商店签名、无需信任任何证书，后续自动更新。</p>
-          <a class="btn btn--primary" href="https://apps.microsoft.com/detail/9NKR2M2ZDDL3" target="_blank" rel="noopener">前往 Microsoft Store</a>
           <p class="dl-note">已上架，商店负责签名与后续更新。</p>
+          <!-- 商店已上架：徽章与 GitHub 按钮同尺寸(161×44)，在下载卡片底部对齐。 -->
+          <a class="store-badge" href="https://apps.microsoft.com/detail/9NKR2M2ZDDL3" target="_blank" rel="noopener"
+             aria-label="Download from the Microsoft Store">
+            <img src="assets/svg/ms-store-badge.svg" alt="Download from the Microsoft Store" width="161" height="44">
+          </a>
         </article>
 
         <article class="dl-card reveal">
           <h3>⬇️ GitHub Release</h3>
           <p>立即可用。下载 <code>.msix</code> 与随包的 <code>.cer</code> 证书，先信任证书再双击安装。</p>
-          <a class="btn btn--primary" href="https://github.com/Fastrof/Minesweeper2.0/releases" target="_blank" rel="noopener">前往 Releases</a>
           <p class="dl-note">也可以用 <code>build.cmd</code> 自己从源码编译。</p>
+          <a class="btn btn--primary dl-badge-btn" href="https://github.com/Fastrof/Minesweeper2.0/releases" target="_blank" rel="noopener">前往 Releases</a>
         </article>
       </div>
 

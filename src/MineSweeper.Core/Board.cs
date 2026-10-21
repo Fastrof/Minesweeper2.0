@@ -1,4 +1,4 @@
-namespace MineSweeper.Core;
+﻿namespace MineSweeper.Core;
 
 /// <summary>
 /// 棋盘状态的唯一容器（§2.1）。
@@ -50,7 +50,7 @@ public sealed class Board
     /// <summary>布雷时是否用上了 5×5 扩展安全区（见 <see cref="BoardGenerator"/>）。</summary>
     public bool UsedExtendedSafeZone { get; internal set; }
 
-    /// <summary>本局是否请求了无猜模式（v1.4）。</summary>
+    /// <summary>本局是否请求了无猜模式（v1.5）。</summary>
     public bool NoGuessRequested { get; internal set; }
 
     /// <summary>

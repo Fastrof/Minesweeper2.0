@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MineSweeper 2.0 — a Windows Minesweeper written from scratch</title>
 <meta name="description" content="MineSweeper 2.0 is a Windows Minesweeper written from scratch: the classic game reproduced 100%, plus 36 levels, three items, a coin shop, 19-key adjustable themes and code-synthesized sound. No third-party assets; it only reaches the GitHub public API when checking for updates (can be disabled in Settings) and collects nothing.">
-<meta name="theme-color" content="#070d18">
-<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#f3efe6">
+<meta name="color-scheme" content="light">
 
 <!-- Social preview -->
 <meta property="og:type" content="website">
@@ -70,7 +70,7 @@
         </div>
 
         <ul class="hero-stats">
-          <li>360 unit tests, all green</li>
+          <li>385 unit tests, all green</li>
           <li>0 warnings, 0 errors</li>
           <li>No third-party images or audio</li>
         </ul>
@@ -154,6 +154,12 @@
           <div class="ico" aria-hidden="true">🛒</div>
           <h3>Coin shop (v1.4)</h3>
           <p>Each mine you sweep out earns <b>1 coin</b>; open the "🛒 Shop" in the board's top-right corner any time — magnifier 30, sonar scan 20, time freeze 20. Coins and the items bought with them <b>last only for this game</b> and start at 0 on every game (and every level).</p>
+        </article>
+
+        <article class="card reveal">
+          <div class="ico" aria-hidden="true">🧠</div>
+          <h3>No-guess mode (v1.5)</h3>
+          <p>When enabled, normal games only deal boards that can be <b>solved by pure logic from the first click</b> — there is always a certain next move, so you <b>never have to guess</b>. Off by default; very large or extremely dense boards fall back to a normal board.</p>
         </article>
 
         <article class="card reveal">
@@ -346,7 +352,7 @@
         </article>
         <article class="card reveal">
           <div class="ico" aria-hidden="true">✅</div>
-          <h3>360 unit tests</h3>
+          <h3>385 unit tests</h3>
           <p>A gatekeeper for the level table, mine placement boundaries, a 1000×1000 empty board without stack overflow, atomic saves and corruption recovery, distinct waveforms — all runnable without a UI in about one second.</p>
         </article>
         <article class="card reveal">
@@ -382,15 +388,19 @@
         <article class="dl-card reveal">
           <h3>🏬 Microsoft Store</h3>
           <p>Easiest: Store-signed, no certificate to trust, updates handled for you.</p>
-          <a class="btn btn--primary" href="https://apps.microsoft.com/detail/9NKR2M2ZDDL3" target="_blank" rel="noopener">Open in Microsoft Store</a>
           <p class="dl-note">Available now — the Store signs it and handles updates.</p>
+          <!-- Store listing is live: the badge and the GitHub button share the same size (161×44) and bottom alignment. -->
+          <a class="store-badge" href="https://apps.microsoft.com/detail/9NKR2M2ZDDL3" target="_blank" rel="noopener"
+             aria-label="Download from the Microsoft Store">
+            <img src="assets/svg/ms-store-badge.svg" alt="Download from the Microsoft Store" width="161" height="44">
+          </a>
         </article>
 
         <article class="dl-card reveal">
           <h3>⬇️ GitHub Release</h3>
           <p>Available now. Download the <code>.msix</code> plus the bundled <code>.cer</code> certificate, trust the certificate, then double-click to install.</p>
-          <a class="btn btn--primary" href="https://github.com/Fastrof/Minesweeper2.0/releases" target="_blank" rel="noopener">Go to Releases</a>
           <p class="dl-note">You can also build it yourself from source with <code>build.cmd</code>.</p>
+          <a class="btn btn--primary dl-badge-btn" href="https://github.com/Fastrof/Minesweeper2.0/releases" target="_blank" rel="noopener">Go to Releases</a>
         </article>
       </div>
 

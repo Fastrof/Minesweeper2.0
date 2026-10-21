@@ -1,7 +1,7 @@
-namespace MineSweeper.Core.Solver;
+﻿namespace MineSweeper.Core.Solver;
 
 /// <summary>
-/// 纯逻辑推理器（v1.4 无猜模式 / 提示）。
+/// 纯逻辑推理器（v1.5 无猜模式 / 提示）。
 ///
 /// <para>
 /// 只用"玩家在盘面上看得到的信息"做推理：已翻开格的数字 + 总雷数。

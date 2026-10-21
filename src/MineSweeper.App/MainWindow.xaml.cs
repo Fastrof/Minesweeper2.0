@@ -1,4 +1,4 @@
-using Microsoft.UI.Dispatching;
+﻿using Microsoft.UI.Dispatching;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -565,7 +565,7 @@ public sealed partial class MainWindow : Window
         FirstClickOpening: FirstClickOpeningSwitch.IsOn,
         PauseTimerOnFocusLoss: PauseTimerSwitch.IsOn,
         LockedBoard: false,    // v1.1：普通模式恒为 false（锁定能力只留给关卡固定盘与分享串复现）
-        NoGuess: NoGuessSwitch.IsOn);   // v1.4：无猜模式
+        NoGuess: NoGuessSwitch.IsOn);   // v1.5：无猜模式
 
     private int? TryReadSeed()
         => int.TryParse(SeedBox.Text?.Trim(), out int seed) ? seed : null;

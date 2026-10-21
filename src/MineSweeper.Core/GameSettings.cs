@@ -1,4 +1,4 @@
-namespace MineSweeper.Core;
+﻿namespace MineSweeper.Core;
 
 /// <summary>游戏模式（§5.5 ⑤：道具默认不在纯经典模式启用）。</summary>
 public enum GameMode
@@ -36,7 +36,7 @@ public sealed record GameSettings
     public bool ChoiceRewards { get; set; }
 
     /// <summary>
-    /// 无猜模式（v1.4，默认关闭）：布雷后用 <see cref="Solver.LogicSolver"/> 验证整盘可纯逻辑推完，
+    /// 无猜模式（v1.5，默认关闭）：布雷后用 <see cref="Solver.LogicSolver"/> 验证整盘可纯逻辑推完，
     /// 不行就重抽。只影响普通开局；关卡的锁定盘面不受影响（同一关永远同一张盘）。
     /// </summary>
     public bool NoGuess { get; init; }

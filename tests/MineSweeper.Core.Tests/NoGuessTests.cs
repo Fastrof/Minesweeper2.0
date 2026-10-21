@@ -1,11 +1,11 @@
-using Xunit;
+﻿using Xunit;
 using System.Diagnostics;
 using MineSweeper.Core;
 using MineSweeper.Core.Solver;
 
 namespace MineSweeper.Core.Tests;
 
-/// <summary>v1.4 无猜模式与提示：推理器、无猜布雷、分享串、性能。</summary>
+/// <summary>v1.5 无猜模式与提示：推理器、无猜布雷、分享串、性能。</summary>
 public sealed class NoGuessTests
 {
     private static GameSettings NoGuessSettings(bool firstClickOpening = true)

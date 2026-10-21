@@ -12,9 +12,9 @@
 
 | | |
 |---|---|
-| **当前版本** | `v1.4` |
+| **当前版本** | `v1.5` |
 | **构建** | `build.cmd` → **0 警告 0 错误** |
-| **测试** | `test.cmd` → **360 / 360 通过**（约 1 秒） |
+| **测试** | `test.cmd` → **385 / 385 通过**（约 1 秒） |
 | **仓库** | https://github.com/Fastrof/Minesweeper2.0 |
 | **商店** | [Microsoft Store](https://apps.microsoft.com/detail/9NKR2M2ZDDL3) |
 | **许可** | 仅供学习与交流使用 |
@@ -50,6 +50,10 @@
 - **金币商店（v1.4）**：棋盘右上角有「🛒 商店」，扫雷过程中随时能点开。每扫出一颗雷得 **1 金币**；
   放大镜 **30** 金币、声呐扫描 **20**、时间冻结 **20**。金币与买到的道具**只在本局有效**，
   每局（关卡模式每关）都从 0 开始，退出即清空。
+- **无猜模式（v1.5）**：设置里新增「无猜模式」开关（默认关）。打开后每张盘都保证能靠纯逻辑推完，
+  **不用赌二选一**；首点安全区、同种子同首点仍是同一张盘的规则都不变，
+  无猜盘的分享串会多带一节标记（旧分享串仍然可以复现）。
+- **发布页视觉重做（v1.5）**：官网换成纸色格线、凸起按钮与商店徽章。
 
 ## 快速开始
 
@@ -59,7 +63,7 @@ cd Minesweeper2.0
 
 build.cmd     :: 编译整个解决方案（x64），0 警告 0 错误
 run.cmd       :: 启动游戏
-test.cmd      :: 跑 Core 层单测（360 个）
+test.cmd      :: 跑 Core 层单测（385 个）
 ```
 
 脚本会依次探测 `%ProgramFiles%\dotnet`、`%ProgramFiles(x86)%\dotnet`、`%DOTNET_ROOT%`、`D:\dotnet`，
@@ -123,7 +127,7 @@ src/
   MineSweeper.Core/         核心逻辑：布雷 / 洪水填充 / chord / 关卡 / 道具 / 存档 / 主题 / 音效合成
   MineSweeper.App/          WinUI 3 外壳：渲染、输入、面板、关于窗口
 tests/
-  MineSweeper.Core.Tests/   360 个 xUnit 用例（20 个测试文件）
+  MineSweeper.Core.Tests/   385 个 xUnit 用例（21 个测试文件）
 ```
 
 > **铁律：游戏规则不要写进 App 层。** 判断标准很简单 —— "这段逻辑能不能不启动 UI 就测"？
@@ -131,11 +135,12 @@ tests/
 
 ## 测试
 
-**360 个用例全部通过**（20 个测试文件，约 1 秒；逐文件分配以 `test.cmd` 输出为准）。
+**385 个用例全部通过**（21 个测试文件，约 1 秒；逐文件分配以 `test.cmd` 输出为准）。
 
 覆盖范围（按文件归类）：
 
 - `LevelTests.cs` — 关卡表守门人、星级、解锁、存档、前后跳转
+- `NoGuessTests.cs` — 无猜模式：三条推理规则、同种子同盘、重抽上限与退回普通盘、提示接口、7 节分享串
 - `AchievementTests.cs` — 成就目录守门人、判定边界、隐藏成就、进度只增不减
 - `UpdateTests.cs` / `UpdatePreferencesTests.cs` / `UpdateDownloadTests.cs` — 版本比较、更新频率与暂停、选包与 SHA256 校验
 - `ThemeAndAudioTests.cs` / `UiThemeTests.cs` — 调色板、音效合成、界面颜色主题与棋盘对比度

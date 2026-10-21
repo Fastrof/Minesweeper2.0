@@ -1,4 +1,4 @@
-namespace MineSweeper.Core;
+﻿namespace MineSweeper.Core;
 
 /// <summary>
 /// 盘面快照（§6.3）：保存"雷位 + 首点"即可完整重建一局，用于"重开本局（同一盘面）"
@@ -31,7 +31,7 @@ public sealed record BoardSnapshot(
                 : $"{Width}x{Height}:{MineCount}:{Seed}:{FirstClickIndex}:{(UsedExtendedSafeZone ? 1 : 0)}";
 
     /// <summary>
-    /// 是否按无猜模式布雷（v1.4）。无猜盘要靠"同 seed + 同首点 + 同样的重抽规则"才能复现，
+    /// 是否按无猜模式布雷（v1.5）。无猜盘要靠"同 seed + 同首点 + 同样的重抽规则"才能复现，
     /// 所以分享串必须带上这一位：此时写成 7 节，第 6 节是锁定标志（0/1），第 7 节固定为 1。
     /// 不开无猜时分享串格式与旧版完全一样，旧版程序照样能读。
     /// </summary>
@@ -62,7 +62,7 @@ public sealed record BoardSnapshot(
 
     /// <summary>
     /// 解析种子串。<paramref name="locked"/> 为 true 表示这是"锁定盘面"的分享串。
-    /// 兼容 5 节（旧格式，非锁定）、6 节（带锁定标志）与 7 节（v1.4，带无猜标志）三种写法。
+    /// 兼容 5 节（旧格式，非锁定）、6 节（带锁定标志）与 7 节（v1.5，带无猜标志）三种写法。
     /// </summary>
     public static bool TryParseShareCode(
         string? code,
