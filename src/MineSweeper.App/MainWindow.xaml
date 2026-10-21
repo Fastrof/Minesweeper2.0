@@ -206,7 +206,7 @@
                 Click="OnHintClick"
                 Content="💡 提示"
                 Visibility="Collapsed"
-                ToolTipService.ToolTip="提示：高亮一个确定安全的格子（本局不计最快记录）" />
+                ToolTipService.ToolTip="提示：高亮一个确定安全的格子（本局不计最快记录；先翻开第一格后可用）" />
         </Grid>
 
         <!-- §1.4 方案 A：单一 Win2D 渲染路径。右侧是 §5.6 的"放大镜信息面板" -->

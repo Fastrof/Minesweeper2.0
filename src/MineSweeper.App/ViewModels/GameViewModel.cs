@@ -363,10 +363,11 @@ public partial class GameViewModel : ObservableObject
 
         // v1.5：无猜局 / 用过提示的局属于"辅助局"，与练习局同样不计最快记录，
         // 否则一键提示或保证可推的盘会把普通榜刷得没有可比性。
+        // 用 Info 而不是 QuietInfo：玩家需要看到"为什么这局没进榜"。
         if (Session.Settings.NoGuess || Session.UsedHint)
         {
             _recordSubmitted = true;
-            _notifier.Publish(GameNotification.QuietInfo(
+            _notifier.Publish(GameNotification.Info(
                 Strings.Get("record.assist.title"),
                 Strings.Get(
                     Session.Settings.NoGuess ? "record.noGuess.body" : "record.hint.body",

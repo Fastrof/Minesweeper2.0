@@ -1545,9 +1545,10 @@ v1.5 按 §12.4 的版本号规则打 **1.5.0.0**）。
   旧存档缺字段时用默认值（扩展开、失焦暂停关、无猜关），迁移不需要额外逻辑。
 - **提示接口与 UI（v1.5 已接）**：`GameSession.FindHint()` 未开局 / 已结束返回 -1，否则返回
   `LogicSolver.FindSafeCell` 的结果；它**不改盘面、不计时、不算道具**。
-  普通/自定义局且不是无猜局时，状态栏显示「💡 提示」按钮：点击后 `MarkHintUsed()` + `BoardView.ShowHint`
-  金色高亮 2 秒（只画格子、不翻开、不插旗），推不出时提示"当前局面需要猜"。
-  用过提示的局与无猜局一样**不计最快记录**（`GameViewModel.SubmitRecordIfNeeded`）；
+  普通/自定义局且不是无猜局时，状态栏显示「💡 提示」按钮：**首点前置灰**（点击不发生），首点后可用；
+  点击后 `MarkHintUsed()` + `BoardView.ShowHint` 金色高亮 2 秒（只画格子、不翻开、不插旗），
+  推不出时用**可见 Toast** 说明"当前局面需要猜"（不能用 QuietInfo，否则玩家点了没反馈）。
+  用过提示的局与无猜局一样**不计最快记录**（`GameViewModel.SubmitRecordIfNeeded`，用 Info 通知说明原因）；
   无猜局与关卡局隐藏该按钮（避免语义冲突 / 关卡星级失去可比性）。
 - **生成时间预算**：无猜重抽最多 2000 张，同时受 `BoardGenerator.NoGuessMaxMilliseconds = 500ms` 兜底；
   超时就按当前盘开局并置 `NoGuessGuaranteed = false`（沿用上面的"未能保证"提示），

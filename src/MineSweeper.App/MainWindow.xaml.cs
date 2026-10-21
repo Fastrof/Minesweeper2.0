@@ -470,11 +470,24 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        // 首点之前棋盘还没布雷，FindHint 必然返回 -1；这里必须给玩家可见的原因，
+        // 不能落到下面的"只能靠猜了"（那是 InProgress 局面才成立的说法）。
+        if (!session.Board.MinesPlaced)
+        {
+            AppPaths.Log("[HINT] 首点之前点击提示。");
+            _notifier.Publish(GameNotification.Info(
+                Strings.Get("hint.beforeFirst.title"),
+                Strings.Get("hint.beforeFirst.body"),
+                "hint.before-first"));
+            return;
+        }
+
         int hint = session.FindHint();
         if (hint < 0)
         {
             AppPaths.Log("[HINT] 当前局面推不出安全格。");
-            _notifier.Publish(GameNotification.QuietInfo(
+            // 用 Info 而不是 QuietInfo：玩家点了按钮就必须看到反馈，否则会以为提示坏了。
+            _notifier.Publish(GameNotification.Info(
                 Strings.Get("hint.none.title"),
                 Strings.Get("hint.none.body"),
                 "hint.none"));
@@ -496,7 +509,7 @@ public sealed partial class MainWindow : Window
         UpdateHintButton();
     }
 
-    /// <summary>提示按钮只在普通/自定义、未结束、且不是无猜局时显示（v1.5）。</summary>
+    /// <summary>提示按钮只在普通/自定义、未结束、且不是无猜局时显示（v1.5）。首点前置灰。</summary>
     private void UpdateHintButton()
     {
         bool show = ViewModel.Session is { } session
@@ -505,6 +518,9 @@ public sealed partial class MainWindow : Window
             && !session.IsFinished;
 
         HintButton.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+
+        // 首点前棋盘还没布雷：按钮可以看见，但先置灰，避免点了没有任何结果。
+        HintButton.IsEnabled = show && ViewModel.Session is { Board.MinesPlaced: true };
     }
 
     private void OnVolumeChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
