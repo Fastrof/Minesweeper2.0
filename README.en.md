@@ -12,7 +12,7 @@ A Windows Minesweeper written from scratch: **reproduce the classic game 100% fi
 
 | | |
 |---|---|
-| **Version** | `v1.5.1` |
+| **Version** | `Windows：v1.5.1  Linux：Linux-v1.5.2` |
 | **Build** | `build.cmd` → **0 warnings, 0 errors** |
 | **Tests** | `test.cmd` → **389 / 389 passing** (~1 second) |
 | **Repository** | https://github.com/Fastrof/Minesweeper2.0 |
