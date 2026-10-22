@@ -12,7 +12,7 @@
 
 | | |
 |---|---|
-| **当前版本** | `v1.5.1` |
+| **当前版本** | `Windows：v1.5.1  Linux：Linux-v1.5.2` |
 | **构建** | `build.cmd` → **0 警告 0 错误** |
 | **测试** | `test.cmd` → **389 / 389 通过**（约 1 秒） |
 | **仓库** | https://github.com/Fastrof/Minesweeper2.0 |
