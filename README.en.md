@@ -47,6 +47,25 @@ Left click to reveal · right click cycles through three states (flag → questi
 - **Coins carry over (v1.5.1)**: earned coins are no longer reset on every game; shop purchases go straight into the account inventory and are kept across games; old saves migrate automatically (coins start at 0).
 - **Website refresh (v1.5)**: the release page now uses a paper-colour grid, raised buttons and store badges.
 
+## Platform support
+
+| Platform | Status | Version | How to get it |
+|---|---|---|---|
+| Windows 10/11 | Primary | v1.5.2 | MSIX / portable build from Releases |
+| Linux (x64) | Maintained since v1.5 | v1.5.2-Linux | Build from `linux/`, or the `.deb` in Releases |
+
+Both platforms **share the same Core** — rules, levels, items, achievements and the save format are identical;
+only the UI layer differs:
+
+- Windows: WinUI 3 + Win2D — code in `src/`
+- Linux: Avalonia + SkiaSharp — code in `linux/`, reusing the very same `MineSweeper.Core` via **linked compilation** (no copy, no fork)
+
+A few conventions:
+
+- Linux builds show a `-Linux` suffix in-game (e.g. `v1.5.2-Linux`) so bug reports can't mix up platforms.
+- Release tags are separate too: `v1.5.2` for Windows, `linux-v1.5.2` for Linux. The Linux update check only accepts the `linux-v*` prefix.
+- Linux build / run / packaging steps live in [`linux/README.md`](linux/README.md).
+
 ## Quick start
 
 ```bat
@@ -116,6 +135,10 @@ MineSweeper.App     WinUI 3 + Win2D → display and input only, no game rules
 src/
   MineSweeper.Core/         core logic: mine placement / flood fill / chord / levels / items / saves / themes / sound synthesis
   MineSweeper.App/          WinUI 3 shell: rendering, input, panels, about windows
+linux/                      Linux port (Avalonia + SkiaSharp), linked compilation of the same Core — no code copy
+  src/MineSweeper.App.Linux/
+  packaging/                .deb packaging script + desktop / AppStream metainfo
+  scripts/                  build.sh / run.sh / headless screenshots
 tests/
   MineSweeper.Core.Tests/   389 xUnit test cases (21 test files)
 ```

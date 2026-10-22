@@ -1,0 +1,29 @@
+<Project>
+
+  <!--
+    Linux 端编译约定（只对本目录下的工程生效）。
+
+    与 Windows 端的 Directory.Build.props **互不影响**：
+      - Linux 工程在仓库的 linux/ 子目录下，MSBuild 向上查找时在这里就找到本文件并停止，
+        不会再去用仓库根（Windows 端）的 Directory.Build.props / Directory.Packages.props；
+      - Core 在这里是"链接编译"（见 csproj 的 Compile Include），不经过它自己的 csproj，
+        所以也不会被这边的 props 影响。
+
+    InvariantGlobalization：Linux 版去掉对 ICU 的依赖（见可行性报告 §1.6）。
+    Core 的字符串比较全部是 Ordinal/OrdinalIgnoreCase，不依赖文化；这样能少一个
+    按发行版变化的 libicu 依赖，并顺带修掉 "F1" 在德语等 locale 下输出 12,3 的问题。
+  -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Deterministic>true</Deterministic>
+    <!-- 当前处于 Spike 阶段：先保证能跑，不把分析器警告升级为错误。 -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

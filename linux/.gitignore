@@ -1,0 +1,16 @@
+# 构建产物
+bin/
+obj/
+artifacts/
+
+# 打包产物（.deb 用 dist/ 放，可自行决定是否提交）
+dist/*.deb
+
+# IDE
+.vs/
+.vscode/
+*.user
+
+# 其他
+*.7z
+*.zip

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.fastrof.minesweeper2</id>
+  <name>Minesweeper 2.0</name>
+  <summary>Classic minesweeper with levels, items, coin shop and achievements</summary>
+  <developer id="io.github.fastrof"><name>Fastrof &amp; Shinichi</name></developer>
+
+  <description>
+    <p>
+      A hand-written minesweeper: the classic rules first, then 36 levels,
+      three items, a coin shop, 31 achievements, themes, bilingual UI and
+      fully synthesized sound effects.
+    </p>
+    <p>
+      Classic rules: left click to reveal, right click to cycle flag/question/empty,
+      double click or middle click to chord, first click is always safe,
+      timer starts on the first reveal.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">minesweeper2.desktop</launchable>
+  <url type="homepage">https://github.com/Fastrof/Minesweeper2.0</url>
+  <url type="bugtracker">https://github.com/Fastrof/Minesweeper2.0/issues</url>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-Proprietary</project_license>
+
+  <categories>
+    <category>Game</category>
+    <category>LogicGame</category>
+  </categories>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+        <release version="1.5.2" date="2026-10-21">
+      <description>
+        <p>Linux 端界面按 Windows v1.5 重做：状态栏卡片、物品栏、商店浮层、关卡卡片、关于窗口与彩蛋。</p>
+        <p>修复：放大镜透视不显示内容、声呐区域不留痕、切换难度后棋盘格宽不对、成就/关于页文案。</p>
+        <p>新增：声呐扫过的区域在棋盘上标浅蓝；版本号加 -Linux 后缀区分平台。</p>
+      </description>
+    </release>
+    <release version="1.5.0" date="2026-10-21">
+      <description>
+        <p>First Linux build (technical preview).</p>
+      </description>
+    </release>
+  </releases>
+</component>

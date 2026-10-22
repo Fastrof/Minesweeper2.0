@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Minesweeper 2.0
+Name[zh_CN]=扫雷 2.0
+GenericName=Minesweeper
+GenericName[zh_CN]=扫雷
+Comment=Classic minesweeper with levels, items, coin shop and achievements
+Comment[zh_CN]=经典扫雷，带关卡、道具、金币商店与成就
+Exec=minesweeper2
+Icon=minesweeper2
+Terminal=false
+Categories=Game;LogicGame;
+Keywords=minesweeper;mines;puzzle;扫雷;
+StartupNotify=true

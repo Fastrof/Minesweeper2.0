@@ -1,0 +1,237 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:MineSweeper.App.Linux.Controls"
+        x:Class="MineSweeper.App.Linux.Views.MainWindow"
+        Title="扫雷 2.0"
+        Width="980" Height="860"
+        Background="#F3F3F3"
+        MinWidth="700" MinHeight="540"
+        FontSize="13">
+
+    <Grid x:Name="RootGrid" Margin="12" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="10">
+
+        <!-- ================= Row 0：状态栏 ================= -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="10">
+
+            <!-- 剩余雷数卡片 -->
+            <Border x:Name="MinesCard" Grid.Column="0" Padding="10,6" CornerRadius="6"
+                    Background="#FFFFFF" BorderBrush="#CFCFCF" BorderThickness="1">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock VerticalAlignment="Center" Text="剩余" Foreground="#5F5F5F" />
+                    <TextBlock x:Name="RemainingText" VerticalAlignment="Center" MinWidth="42"
+                               FontSize="20" FontWeight="Bold" Foreground="#1F1F1F" Text="010" />
+                    <TextBlock VerticalAlignment="Center" Text="/" Foreground="#5F5F5F" />
+                    <TextBlock x:Name="TotalMinesText" VerticalAlignment="Center"
+                               FontSize="20" Foreground="#8A6A00" Text="10" />
+                </StackPanel>
+            </Border>
+
+            <!-- 状态文字（可伸缩，窄窗口下省略号） -->
+            <TextBlock x:Name="StatusText" Grid.Column="1" Margin="6,0" MinWidth="110"
+                       VerticalAlignment="Center" Foreground="#5F5F5F"
+                       TextTrimming="CharacterEllipsis" Text="" />
+
+            <!-- 笑脸 -->
+            <Button x:Name="SmileyButton" Grid.Column="2" Width="54" Height="44" Padding="0"
+                    VerticalAlignment="Center" Click="OnSmileyClick" Background="Transparent"
+                    BorderThickness="0" ToolTip.Tip="重新开一局">
+                <controls:SmileyControl x:Name="Smiley" Width="30" Height="30" />
+            </Button>
+
+            <!-- 用时卡片 -->
+            <Border x:Name="TimerCard" Grid.Column="3" Padding="10,6" CornerRadius="6"
+                    Background="#FFFFFF" BorderBrush="#CFCFCF" BorderThickness="1">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock VerticalAlignment="Center" Text="用时" Foreground="#5F5F5F" />
+                    <TextBlock x:Name="TimerText" VerticalAlignment="Center" MinWidth="54"
+                               FontSize="20" FontWeight="Bold" Foreground="#1F1F1F" Text="000" />
+                </StackPanel>
+            </Border>
+
+            <!-- 物品栏：三格 48×48，右下角数量角标 -->
+            <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <Border x:Name="MagnifierSlot" Width="48" Height="48" CornerRadius="6"
+                        Background="#FFFFFF" BorderBrush="#CFCFCF" BorderThickness="1"
+                        PointerPressed="OnMagnifierSlotPressed">
+                    <Grid>
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" Text="🔍" />
+                        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Padding="4,0"
+                                CornerRadius="6" Background="#1E63D8">
+                            <TextBlock x:Name="MagnifierCountText" FontSize="11" Foreground="White" Text="2" />
+                        </Border>
+                    </Grid>
+                </Border>
+                <Border x:Name="SonarSlot" Width="48" Height="48" CornerRadius="6"
+                        Background="#FFFFFF" BorderBrush="#CFCFCF" BorderThickness="1"
+                        PointerPressed="OnSonarSlotPressed">
+                    <Grid>
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" Text="📡" />
+                        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Padding="4,0"
+                                CornerRadius="6" Background="#1E63D8">
+                            <TextBlock x:Name="SonarCountText" FontSize="11" Foreground="White" Text="2" />
+                        </Border>
+                    </Grid>
+                </Border>
+                <Border x:Name="FreezeSlot" Width="48" Height="48" CornerRadius="6"
+                        Background="#FFFFFF" BorderBrush="#CFCFCF" BorderThickness="1"
+                        PointerPressed="OnFreezeSlotPressed">
+                    <Grid>
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22" Text="🧊" />
+                        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Padding="4,0"
+                                CornerRadius="6" Background="#1E63D8">
+                            <TextBlock x:Name="FreezeCountText" FontSize="11" Foreground="White" Text="2" />
+                        </Border>
+                    </Grid>
+                </Border>
+            </StackPanel>
+
+            <!-- 提示按钮（只在普通局且非无猜局显示） -->
+            <Button x:Name="HintButton" Grid.Column="5" Height="44" Padding="10,4" VerticalAlignment="Center"
+                    Click="OnHintClick" Content="💡 提示" IsVisible="False" />
+        </Grid>
+
+        <!-- ================= Row 1：棋盘区 ================= -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+
+            <Border x:Name="BoardFrame" Grid.Column="0" CornerRadius="6"
+                    Background="#E2E2E2" BorderBrush="#CFCFCF" BorderThickness="1">
+                <controls:BoardControl x:Name="Board" />
+            </Border>
+
+            <!-- 商店入口：浮在棋盘右上角（不占布局） -->
+            <Border x:Name="ShopEntry" Grid.Column="0" Margin="0,8,8,0" Padding="8,4"
+                    HorizontalAlignment="Right" VerticalAlignment="Top" CornerRadius="8"
+                    Background="#F2FFFFFF" BorderBrush="#CFCFCF" BorderThickness="1" ZIndex="5">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Padding="4,2" Click="OnShopClick" Content="🛒 商店"
+                            Background="Transparent" BorderThickness="0" />
+                    <TextBlock x:Name="CoinText" VerticalAlignment="Center" FontWeight="SemiBold"
+                               Foreground="#8A6A00" Text="🪙 0" />
+                </StackPanel>
+            </Border>
+
+            <!-- 放大镜/声呐信息面板（瞄准时出现，280 宽，与 Windows 端一致） -->
+            <Border x:Name="ItemInfoPanel" Grid.Column="1" Width="280" Padding="10" CornerRadius="6"
+                    Background="#FFFFFF" BorderBrush="#CFCFCF" BorderThickness="1" IsVisible="False">
+                <ScrollViewer>
+                    <StackPanel Spacing="6">
+                        <TextBlock x:Name="ItemInfoHeading" FontWeight="SemiBold" Foreground="#1F1F1F" Text="放大镜区域" />
+                        <TextBlock FontSize="11" Foreground="#5F5F5F" TextWrapping="Wrap"
+                                   Text="列出瞄准/透视区域的坐标与内容，便于无障碍与截图分享。" />
+                        <TextBlock x:Name="ItemInfoText" FontSize="12" FontFamily="DejaVu Sans Mono"
+                                   TextWrapping="Wrap" Foreground="#1F1F1F" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- ================= Row 2：操作区 ================= -->
+        <StackPanel Grid.Row="2" Spacing="8">
+
+            <!-- 关卡目标条（只在关卡局显示） -->
+            <Border x:Name="LevelGoalBar" Padding="10,6" CornerRadius="6"
+                    Background="#FFFFFF" BorderBrush="#CFCFCF" BorderThickness="1" IsVisible="False">
+                <TextBlock x:Name="LevelGoalText" TextWrapping="Wrap" Foreground="#1F1F1F" />
+            </Border>
+
+            <!-- 第一行：难度 + 关卡模式 -->
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button x:Name="BeginnerButton" Click="OnBeginnerClick" Content="初级 9×9 / 10 雷" />
+                <Button x:Name="IntermediateButton" Click="OnIntermediateClick" Content="中级 16×16 / 40 雷" />
+                <Button x:Name="ExpertButton" Click="OnExpertClick" Content="高级 30×16 / 99 雷" />
+                <Button x:Name="LevelsButton" Click="OnLevelsClick" Content="关卡模式" />
+            </StackPanel>
+
+            <!-- 第二行：设置 / 历史 / 成就 / 关于 + 种子 -->
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <ToggleButton x:Name="SettingsToggle" Content="设置 / 自定义" Click="OnSettingsToggleClick" />
+                <Button Click="OnCopySeedClick" Content="复制本局种子" />
+                <Button x:Name="HistoryButton" Click="OnHistoryClick" Content="历史记录" />
+                <Button x:Name="AchievementsButton" Click="OnAchievementsClick" Content="🏆 成就" />
+                <Button x:Name="AboutGameButton" Click="OnAboutGameClick" Content="关于游戏" />
+                <Button x:Name="AboutAuthorsButton" Click="OnAboutAuthorsClick" Content="关于作者" />
+                <TextBlock x:Name="SeedText" VerticalAlignment="Center" Foreground="#5F5F5F"
+                           FontFamily="DejaVu Sans Mono" Text="" />
+            </StackPanel>
+
+            <!-- 内联设置面板（与 Windows 端一致：点「设置 / 自定义」展开） -->
+            <Border x:Name="SettingsPanel" Padding="12" CornerRadius="6"
+                    Background="#FFFFFF" BorderBrush="#CFCFCF" BorderThickness="1" IsVisible="False">
+                <StackPanel Spacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock VerticalAlignment="Center" Text="界面颜色" />
+                        <ComboBox x:Name="UiThemeBox" Width="130" />
+                        <TextBlock VerticalAlignment="Center" Text="语言" Margin="12,0,0,0" />
+                        <ComboBox x:Name="LanguageBox" Width="130" />
+                        <TextBlock VerticalAlignment="Center" Text="主题" Margin="12,0,0,0" />
+                        <ComboBox x:Name="ThemeCombo" Width="130" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock VerticalAlignment="Center" Text="宽" />
+                        <NumericUpDown x:Name="WidthBox" Minimum="1" Maximum="4096" Value="9" Width="120"
+                                       FormatString="0" ShowButtonSpinner="False" />
+                        <TextBlock VerticalAlignment="Center" Text="高" />
+                        <NumericUpDown x:Name="HeightBox" Minimum="1" Maximum="4096" Value="9" Width="120"
+                                       FormatString="0" ShowButtonSpinner="False" />
+                        <TextBlock VerticalAlignment="Center" Text="雷" />
+                        <NumericUpDown x:Name="MinesBox" Minimum="0" Maximum="4096" Value="10" Width="120"
+                                       FormatString="0" ShowButtonSpinner="False" />
+                        <Button Click="OnCustomStartClick" Content="开始自定义" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock VerticalAlignment="Center" Text="种子" />
+                        <TextBox x:Name="SeedBox" Width="150" PlaceholderText="留空 = 随机" />
+                        <Button Click="OnReplaySeedClick" Content="按种子开局" />
+                        <TextBlock VerticalAlignment="Center" Text="分享串" Margin="12,0,0,0" />
+                        <TextBox x:Name="ShareCodeBox" Width="240" PlaceholderText="宽x高:雷数:种子:首点:扩展" />
+                        <Button Click="OnOpenShareCodeClick" Content="打开" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <ToggleSwitch x:Name="FirstClickOpeningSwitch" OnContent="首点扩展安全区" OffContent="首点扩展安全区" />
+                        <ToggleSwitch x:Name="PauseTimerSwitch" OnContent="失焦暂停" OffContent="失焦暂停" />
+                        <ToggleSwitch x:Name="NoGuessSwitch" OnContent="无猜模式" OffContent="无猜模式" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ToggleSwitch x:Name="AudioToggle" OnContent="音效" OffContent="音效" />
+                        <TextBlock VerticalAlignment="Center" Text="音量" />
+                        <Slider x:Name="VolumeSlider" Minimum="0" Maximum="100" Value="70" Width="180" />
+                        <Button Click="OnPreviewSoundClick" Content="试听" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock VerticalAlignment="Center" Text="检查更新" />
+                        <TextBlock x:Name="UpdateVersionText" VerticalAlignment="Center" Foreground="#5F5F5F" />
+                        <Button x:Name="CheckUpdateButton" Click="OnCheckUpdateClick" Content="检查更新" />
+                        <TextBlock x:Name="UpdateStatusText" VerticalAlignment="Center" Foreground="#5F5F5F" Text="" />
+                        <Button x:Name="WhatsNewButton" Click="OnWhatsNewClick" Content="本版新增" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- ================= Row 3：关卡导航（关卡局才显示） ================= -->
+        <StackPanel x:Name="LevelNavRow" Grid.Row="3" Orientation="Horizontal" Spacing="8" IsVisible="False">
+            <Button x:Name="PrevLevelButton" Click="OnPrevLevelClick" Content="◀ 上一关" />
+            <Button x:Name="NextLevelButton" Click="OnNextLevelClick" Content="下一关 ▶" />
+            <TextBlock x:Name="LevelNavText" VerticalAlignment="Center" Foreground="#5F5F5F" Text="" />
+        </StackPanel>
+
+        <!-- ================= 覆盖层宿主 ================= -->
+        <ContentControl Grid.RowSpan="4" x:Name="OverlayHost" IsVisible="False" />
+
+        <!-- ================= 浮动通知条 ================= -->
+        <Border x:Name="ToastBar" Grid.Row="1" VerticalAlignment="Top" HorizontalAlignment="Center"
+                Margin="0,14,0,0" Padding="18,10" CornerRadius="8"
+                Background="#F2FFFFFF" BorderBrush="#CFCFCF" BorderThickness="1"
+                IsVisible="False" IsHitTestVisible="False" ZIndex="30">
+            <TextBlock x:Name="ToastText" Foreground="#1F1F1F" FontSize="13"
+                       MaxWidth="560" TextWrapping="Wrap" />
+        </Border>
+
+    </Grid>
+
+</Window>

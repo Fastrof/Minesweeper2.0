@@ -1,0 +1,75 @@
+name: linux
+
+# Linux 端的 CI：构建 + 无头截图 + 打 deb + lintian。
+#
+# 仓库是单仓双平台：Windows 工程在 src/、tests/，Linux 工程在 linux/。
+# Linux 的 Core 是"链接编译"（见 linux/src/MineSweeper.App.Linux/*.csproj 的 Compile Include），
+# 所以这里不需要单独构建 Core。
+#
+# 触发条件只认 Linux 相关的改动与 linux-v* tag，避免 Windows 端提交也跑一遍 Linux CI。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'linux/**'
+      - 'src/MineSweeper.Core/**'
+      - '.github/workflows/linux.yml'
+    # Linux 端独立发布节奏：tag 必须带 linux-v 前缀（例如 linux-v1.5.2）。
+    tags: ['linux-v*']
+  pull_request:
+    paths:
+      - 'linux/**'
+      - 'src/MineSweeper.Core/**'
+      - '.github/workflows/linux.yml'
+  workflow_dispatch:
+
+# 所有 run 步骤都在 linux/ 子目录里执行
+defaults:
+  run:
+    working-directory: linux
+
+jobs:
+  build-and-pack:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install packaging tools
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev lintian appstream binutils
+
+      - name: Build (Release)
+        run: |
+          dotnet build src/MineSweeper.App.Linux/MineSweeper.App.Linux.csproj \
+            -c Release --artifacts-path "$RUNNER_TEMP/artifacts"
+
+      - name: Headless screenshots (visual regression evidence)
+        run: |
+          cd "$RUNNER_TEMP/artifacts/bin/MineSweeper.App.Linux/release"
+          dotnet Minesweeper2.dll --screenshot "$RUNNER_TEMP/shots"
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: ${{ runner.temp }}/shots
+
+      - name: Pack .deb
+        run: bash packaging/pack-deb.sh
+        env:
+          ARTIFACTS: ${{ runner.temp }}/artifacts
+          DOTNET: dotnet
+
+      - name: lintian (must be clean)
+        run: lintian --fail-on error "$RUNNER_TEMP"/artifacts/deb/*.deb
+
+      - name: Upload .deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: minesweeper2-deb
+          path: ${{ runner.temp }}/artifacts/deb/*.deb

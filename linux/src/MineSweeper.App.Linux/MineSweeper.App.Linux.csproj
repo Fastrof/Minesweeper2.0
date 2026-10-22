@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    MineSweeper.App.Linux —— Linux 版前端（Avalonia 12.1.4）。
+
+    ★ 隔离原则（重要）：
+      - 本工程不引用 Windows 端的 MineSweeper.App（WinUI 3 无法在 Linux 上编译）；
+      - Core 用「链接编译」直接纳入本工程（Compile Include），**不写 ProjectReference**。
+        好处：Core 的 bin/obj 不会落到 Windows 仓库目录，Windows 端一个文件都不会被改动；
+        坏处：Core 若将来新增 NuGet 包依赖，需要在这里同步（目前 Core 零包依赖）。
+
+    ★ 输出隔离：构建时统一传 artifacts-path（见 scripts/build.sh），
+      所有 obj/bin 都落到 Linux 侧磁盘，Windows 仓库目录零写入。
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>Minesweeper2</AssemblyName>
+    <RootNamespace>MineSweeper.App.Linux</RootNamespace>
+    <ApplicationTitle>Minesweeper 2.0</ApplicationTitle>
+
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <Version>1.5.2</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <!-- 无头渲染：screenshot 模式用它出图（也便于以后做 CI 视觉回归） -->
+    <PackageReference Include="Avalonia.Headless" />
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <!--
+    ★ Core 链接编译：源码唯一来源仍是 Windows 仓库，这里只"纳入编译"，不复制、不修改。
+    未来若把仓库改成多平台单仓，把这段换成 ProjectReference 即可。
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\..\src\MineSweeper.Core\**\*.cs"
+             Exclude="..\..\..\src\MineSweeper.Core\bin\**\*.cs;..\..\..\src\MineSweeper.Core\obj\**\*.cs"
+             LinkBase="LinkedCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+</Project>

@@ -58,6 +58,24 @@
 - **金币跨局累计（v1.5.1）**：赚到的金币不再每局清零；商店买到的道具直接进账号物品栏，也跨局保留；旧存档自动迁移（金币按 0 起算）。
 - **发布页视觉重做（v1.5）**：官网换成纸色格线、凸起按钮与商店徽章。
 
+## 平台支持
+
+| 平台 | 状态 | 版本 | 获取方式 |
+|---|---|---|---|
+| Windows 10/11 | 主力版本 | v1.5.2 | 本仓库 Release 的 MSIX / 便携包 |
+| Linux (x64) | v1.5 起维护 | v1.5.2-Linux | `linux/` 目录自行构建，或 Release 里的 `.deb` |
+
+两个平台**共用同一套 Core**（规则、关卡、道具、成就、存档格式完全一致），只是 UI 层不同：
+
+- Windows：WinUI 3 + Win2D —— 代码在 `src/`
+- Linux：Avalonia + SkiaSharp —— 代码在 `linux/`，以**链接编译**的方式复用同一份 `MineSweeper.Core`（不复制、不分叉）
+
+几点约定：
+
+- Linux 端界面上的版本号统一带 `-Linux` 后缀（如 `v1.5.2-Linux`），避免玩家报版本时分不清平台。
+- 发布 tag 也分开：Windows 用 `v1.5.2`，Linux 用 `linux-v1.5.2`；Linux 端的「检查更新」只认 `linux-v*` 前缀。
+- Linux 的构建、运行、打包步骤见 [`linux/README.md`](linux/README.md)。
+
 ## 快速开始
 
 ```bat
@@ -129,6 +147,10 @@ MineSweeper.App     WinUI 3 + Win2D → 只负责显示与输入，不含游戏�
 src/
   MineSweeper.Core/         核心逻辑：布雷 / 洪水填充 / chord / 关卡 / 道具 / 存档 / 主题 / 音效合成
   MineSweeper.App/          WinUI 3 外壳：渲染、输入、面板、关于窗口
+linux/                      Linux 端（Avalonia + SkiaSharp），链接编译同一份 Core，不复制代码
+  src/MineSweeper.App.Linux/
+  packaging/                .deb 打包脚本 + desktop / AppStream metainfo
+  scripts/                  build.sh / run.sh / 无头截图
 tests/
   MineSweeper.Core.Tests/   389 个 xUnit 用例（21 个测试文件）
 ```

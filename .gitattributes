@@ -1,0 +1,17 @@
+# 行尾策略
+#
+# 背景：本机 Windows 上的 core.autocrlf=true，checkout 时会把文本文件转成 CRLF。
+# Linux 端的 shell 脚本（linux/scripts/*.sh、linux/packaging/*.sh）在 WSL / Linux 里直接执行，
+# 一旦被转成 CRLF 就会报 "/usr/bin/env: 'bash\r': No such file or directory"。
+# 所以这里显式把 .sh 锁成 LF —— 不论在哪个平台 checkout。
+#
+# 其他文件不动：仓库里 .cs/.xaml/.md 的 index 一直是 LF，
+# 交给 git 按各平台默认处理即可，避免全仓库 renormalize 产生无关 diff。
+
+.gitattributes text eol=lf
+
+*.sh text eol=lf
+
+# Linux 打包用的 desktop 入口与 AppStream 元数据也按 LF（校验工具对 CRLF 敏感）
+linux/packaging/*.desktop text eol=lf
+linux/packaging/*.metainfo.xml text eol=lf
