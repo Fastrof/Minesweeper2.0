@@ -34,6 +34,8 @@ mkdir -p "$PKG/DEBIAN" \
          "$PKG/usr/lib/$PKGNAME" \
          "$PKG/usr/bin" \
          "$PKG/usr/share/applications" \
+         "$PKG/usr/share/icons/hicolor/48x48/apps" \
+         "$PKG/usr/share/icons/hicolor/128x128/apps" \
          "$PKG/usr/share/icons/hicolor/256x256/apps" \
          "$PKG/usr/share/icons/hicolor/512x512/apps" \
          "$PKG/usr/share/metainfo" \
@@ -57,10 +59,16 @@ done
 cp "$REPO_ROOT/packaging/minesweeper2.desktop" "$PKG/usr/share/applications/"
 cp "$REPO_ROOT/packaging/minesweeper2.metainfo.xml" "$PKG/usr/share/metainfo/"
 
-# 图标：复用 Windows 仓库里的自绘图标（只读，不修改）；256/512 都是正方形
-WIN="$REPO_ROOT/../MineSweeper2.0-Windows"
-cp "$WIN/docs/assets/img/icon-256.png" "$PKG/usr/share/icons/hicolor/256x256/apps/$PKGNAME.png"
-cp "$WIN/docs/assets/img/icon-512.png" "$PKG/usr/share/icons/hicolor/512x512/apps/$PKGNAME.png"
+# 图标：用 packaging/icons/ 下预生成的多尺寸 PNG（源图来自 docs/assets/img/icon-512.png）。
+# 之前只装 256/512，很多面板/任务栏只认 48/128，会被硬缩放出虚边，所以补齐四档。
+for size in 48 128 256 512; do
+  src="$REPO_ROOT/packaging/icons/$size.png"
+  if [ -f "$src" ]; then
+    cp "$src" "$PKG/usr/share/icons/hicolor/${size}x${size}/apps/$PKGNAME.png"
+  else
+    echo "警告：缺少 $src" >&2
+  fi
+done
 
 # lintian override：.NET / SkiaSharp 运行时自带第三方库是 self-contained 的固有形态
 cat > "$PKG/usr/share/lintian/overrides/$PKGNAME" <<'OVR'

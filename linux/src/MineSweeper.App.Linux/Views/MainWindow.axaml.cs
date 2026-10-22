@@ -46,6 +46,9 @@ public partial class MainWindow : Window
 
         InitializeComponent();
 
+        // 窗口图标：任务栏 / Alt+Tab / 标题栏都用它（素材与 .deb 的 hicolor 图标同一张）
+        Icon = CreateAppIcon();
+
         Board.Game = _game;
         Board.StatusMessage += (_, text) => ShowToast(string.Empty, text);
         Board.AimingChanged += (_, _) => UpdateItemInfoPanel();
@@ -332,6 +335,25 @@ public partial class MainWindow : Window
     }
 
     // ---------------------------------------------------------------- 主题与语言
+
+    /// <summary>
+    /// 应用窗口图标。Linux 端此前只打了 .deb 的 hicolor 图标，窗口/任务栏是 Avalonia 默认图标；
+    /// 这里用同一张 <c>Assets/app-icon.png</c> 补上，加载失败也不影响启动。
+    /// </summary>
+    private static WindowIcon? CreateAppIcon()
+    {
+        try
+        {
+            return new WindowIcon(
+                Avalonia.Platform.AssetLoader.Open(
+                    new Uri("avares://Minesweeper2/Assets/app-icon.png")));
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or ArgumentException)
+        {
+            AppPaths.Log($"[窗口] 应用图标加载失败：{ex.Message}");
+            return null;
+        }
+    }
 
     private void ApplyTheme()
     {
@@ -722,6 +744,7 @@ public partial class MainWindow : Window
             CanMinimize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Background = new SolidColorBrush(UiPalette.Current.WindowBg),
+            Icon = CreateAppIcon(),
             Content = content,
         };
 
