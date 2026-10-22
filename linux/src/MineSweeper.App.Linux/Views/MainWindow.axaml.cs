@@ -85,6 +85,10 @@ public partial class MainWindow : Window
             ApplyTheme();
             Board.FitToWindow();
             FitWindowToBoard();
+
+            // 再赋一次新实例，触发属性变更，让窗口管理器重新取图标
+            //（部分 WM 在 map 之后才读 _NET_WM_ICON）。
+            Icon = CreateAppIcon();
         };
         // 窗口尺寸变化（切难度 / 切关卡局都会改窗口大小）后重新适配棋盘，
         // 否则棋盘会按"改尺寸之前"的 Bounds 算格宽——这就是初/中/高级盘显示不对的根因。
@@ -354,6 +358,7 @@ public partial class MainWindow : Window
             return null;
         }
     }
+
 
     private void ApplyTheme()
     {
