@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MineSweeper 2.0 — a Windows Minesweeper written from scratch</title>
-<meta name="description" content="MineSweeper 2.0 is a Windows Minesweeper written from scratch: the classic game reproduced 100%, plus 36 levels, three items, a coin shop, 19-key adjustable themes and code-synthesized sound. No third-party assets; it only reaches the GitHub public API when checking for updates (can be disabled in Settings) and collects nothing.">
+<title>MineSweeper 2.0 — a minesweeper written from scratch, Windows + Linux</title>
+<meta name="description" content="MineSweeper 2.0 is a minesweeper written from scratch: the classic game reproduced 100%, plus 36 levels, three items, a coin shop, 19-key adjustable themes and code-synthesized sound. Windows and Linux share the same core — a genuine dual-platform build. No third-party assets; it only reaches the GitHub public API when checking for updates (can be disabled in Settings) and collects nothing.">
 <meta name="theme-color" content="#f3efe6">
 <meta name="color-scheme" content="light">
 
 <!-- Social preview -->
 <meta property="og:type" content="website">
 <meta property="og:title" content="MineSweeper 2.0">
-<meta property="og:description" content="Classic Minesweeper reproduced 100% · 36 levels · three items + coin shop · zero third-party assets · out now on Microsoft Store">
+<meta property="og:description" content="Classic Minesweeper reproduced 100% · 36 levels · three items + coin shop · Windows + Linux · zero third-party assets · out now on Microsoft Store">
 <meta property="og:image" content="assets/img/og-1200x630.png">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
@@ -56,11 +56,12 @@
   <section class="hero">
     <div class="container">
       <div class="hero-text">
-        <p class="hero-tag"><span class="dot" aria-hidden="true"></span> Windows 10/11 · x64 · Free</p>
+        <p class="hero-tag"><span class="dot" aria-hidden="true"></span> Windows 10/11 · Linux x64 · Free · v1.5.2</p>
         <h1>MineSweeper 2.0</h1>
         <p class="lead">
-          A Windows Minesweeper written from scratch: <strong>reproduce the classic game 100% first, then build something new on top of it.</strong>
-          C# + .NET 10 + WinUI 3 + Win2D. No Visual Studio required — <code>dotnet build</code> is enough.
+          A minesweeper written from scratch: <strong>reproduce the classic game 100% first, then build something new on top of it.</strong>
+          Both platforms share the same Core — Windows uses C# + .NET 10 + WinUI 3 + Win2D,
+          Linux uses Avalonia + SkiaSharp. No Visual Studio required — <code>dotnet build</code> is enough.
         </p>
 
         <div class="btn-row">
@@ -381,7 +382,7 @@
       <div class="section-head reveal">
         <p class="eyebrow">Download</p>
         <h2>Install and play</h2>
-        <p class="lead">Two ways to install, identical content. The package is <strong>self-contained</strong> — no .NET or Windows App SDK prerequisite.</p>
+        <p class="lead">Two ways to install on Windows, one on Linux — identical content. Every package is <strong>self-contained</strong>: no .NET or Windows App SDK prerequisite.</p>
       </div>
 
       <div class="dl-grid">
@@ -397,22 +398,30 @@
         </article>
 
         <article class="dl-card reveal">
-          <h3>⬇️ GitHub Release</h3>
+          <h3>⬇️ GitHub Release (Windows)</h3>
           <p>Available now. Download the <code>.msix</code> plus the bundled <code>.cer</code> certificate, trust the certificate, then double-click to install.</p>
           <p class="dl-note">You can also build it yourself from source with <code>build.cmd</code>.</p>
+          <a class="btn btn--primary dl-badge-btn" href="https://github.com/Fastrof/Minesweeper2.0/releases" target="_blank" rel="noopener">Go to Releases</a>
+        </article>
+
+        <article class="dl-card reveal">
+          <h3>🐧 Linux (.deb)</h3>
+          <p>Download <code>minesweeper2_1.5.2_amd64.deb</code> and install it with one command; dependencies are resolved for you.</p>
+          <p class="dl-note"><code>sudo apt install ./minesweeper2_1.5.2_amd64.deb</code><br>Then search "Minesweeper" in your app menu, or run <code>minesweeper2</code>.</p>
           <a class="btn btn--primary dl-badge-btn" href="https://github.com/Fastrof/Minesweeper2.0/releases" target="_blank" rel="noopener">Go to Releases</a>
         </article>
       </div>
 
       <div class="table-wrap reveal" style="margin-top:22px">
         <table>
-          <thead><tr><th>Requirement</th><th>Detail</th></tr></thead>
+          <thead><tr><th>Requirement</th><th>Windows</th><th>Linux</th></tr></thead>
           <tbody>
-            <tr><td>OS</td><td>Windows 10 1809 (17763) or later / Windows 11</td></tr>
-            <tr><td>Architecture</td><td>x64 (runs on ARM64 devices via Windows 11 x64 emulation)</td></tr>
-            <tr><td>.NET runtime</td><td><strong>Not required</strong> — bundled in the package</td></tr>
-            <tr><td>Windows App SDK</td><td><strong>Not required</strong> — bundled in the package</td></tr>
-            <tr><td>Disk usage</td><td>About 230 MB installed (mostly the bundled runtimes; the package itself is 93 MB)</td></tr>
+            <tr><td>OS</td><td>Windows 10 1809 (17763) or later / Windows 11</td><td>glibc ≥ 2.35 (Ubuntu 22.04+ / Debian 12+ / Fedora 36+)</td></tr>
+            <tr><td>Architecture</td><td>x64 (runs on ARM64 devices via Windows 11 x64 emulation)</td><td>x86_64</td></tr>
+            <tr><td>Graphics</td><td>Built in</td><td>X11 or Wayland desktop (WSLg also works)</td></tr>
+            <tr><td>.NET runtime</td><td><strong>Not required</strong> — bundled</td><td><strong>Not required</strong> — bundled</td></tr>
+            <tr><td>Other deps</td><td>Windows App SDK is bundled</td><td>libx11 / fontconfig / fonts-dejavu-core installed automatically</td></tr>
+            <tr><td>Disk usage</td><td>About 230 MB installed (93 MB package)</td><td>About 102 MB installed (35 MB package)</td></tr>
           </tbody>
         </table>
       </div>
@@ -421,7 +430,7 @@
         <strong>The GitHub build shows "unknown publisher" on first install</strong>, because it is signed with a self-signed certificate.
         Trust the bundled certificate first from an elevated PowerShell:
         <br><code>Import-Certificate -FilePath .\MineSweeper2.0-dev.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople</code>
-        <br>The Store version needs no such step.
+        <br>The Store version needs no such step, and neither does the Linux <code>.deb</code> — just install it with <code>apt</code>.
       </div>
     </div>
   </section>
@@ -436,13 +445,18 @@
 
       <div class="faq reveal">
         <details>
+          <summary>Is the Linux version the same game as the Windows one?</summary>
+          <p>Yes. Both platforms <strong>share the same Core</strong> — mine placement, flood fill, chording, levels, items, achievements and the save format are identical; only the UI layer differs (WinUI 3 + Win2D on Windows, Avalonia + SkiaSharp on Linux). Scoring rules, save structure and easter eggs are the same on both sides. Linux builds carry a <code>-Linux</code> suffix (e.g. <code>v1.5.2-Linux</code>) and are released under <code>linux-v*</code> tags, independent of the Windows <code>v*</code> tags.</p>
+        </details>
+
+        <details>
           <summary>Why can't I use the keyboard on the board?</summary>
           <p>That is intentional — the project owner required pure mouse control, so the board is not focusable and has no focus ring. Text fields in the settings panel (seed, share code) still accept keyboard input. Arrow keys, Enter and Space do nothing on the board; that is not a malfunction.</p>
         </details>
 
         <details>
           <summary>Where is my save data?</summary>
-          <p>For the unpackaged build: <code>%LOCALAPPDATA%\MineSweeper2\</code>. For the Store build: the app's local data folder. It holds <code>settings.json</code>, <code>progress.json</code> (progress and items), <code>levelprogress.json</code>, <code>records.json</code> (best times), <code>history.json</code> (lifetime stats), <code>config.json</code> (hand-editable configuration) and <code>app.log</code>. <strong>Deleting that folder resets everything.</strong></p>
+          <p>Windows unpackaged build: <code>%LOCALAPPDATA%\MineSweeper2\</code>; Store build: the app's local data folder. <strong>Linux: <code>~/.local/share/minesweeper2/</code></strong> (XDG, honouring <code>XDG_DATA_HOME</code> when set). It holds <code>settings.json</code>, <code>progress.json</code> (progress and items), <code>levelprogress.json</code>, <code>records.json</code> (best times), <code>history.json</code> (lifetime stats), <code>config.json</code> (hand-editable configuration) and <code>app.log</code>. <strong>Deleting that folder resets everything.</strong></p>
         </details>
 
         <details>

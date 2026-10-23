@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>扫雷 2.0 / MineSweeper 2.0 —— 从零手写的 Windows 扫雷</title>
-<meta name="description" content="扫雷 2.0 是一个从零手写的 Windows 扫雷：经典玩法 100% 还原，另有 6 章 36 关关卡模式、三种道具、金币商店、19 色可调主题与代码合成音效。零第三方素材；仅在检查更新时访问 GitHub 公开接口（可在设置关闭），不收集任何数据。">
+<title>扫雷 2.0 / MineSweeper 2.0 —— 从零手写的扫雷，Windows + Linux</title>
+<meta name="description" content="扫雷 2.0 是一个从零手写的扫雷：经典玩法 100% 还原，另有 6 章 36 关关卡模式、三种道具、金币商店、19 色可调主题与代码合成音效。Windows 与 Linux 共用同一套核心、原生双平台；零第三方素材；仅在检查更新时访问 GitHub 公开接口（可在设置关闭），不收集任何数据。">
 <meta name="theme-color" content="#f3efe6">
 <meta name="color-scheme" content="light">
 
 <!-- 社交分享 -->
 <meta property="og:type" content="website">
 <meta property="og:title" content="扫雷 2.0 / MineSweeper 2.0">
-<meta property="og:description" content="经典玩法 100% 还原 · 6 章 36 关 · 三种道具 + 金币商店 · 零第三方素材 · Microsoft Store 已上架">
+<meta property="og:description" content="经典玩法 100% 还原 · 6 章 36 关 · 三种道具 + 金币商店 · Windows + Linux 双平台 · 零第三方素材 · Microsoft Store 已上架">
 <meta property="og:image" content="assets/img/og-1200x630.png">
 <meta property="og:locale" content="zh_CN">
 <meta name="twitter:card" content="summary_large_image">
@@ -56,11 +56,12 @@
   <section class="hero">
     <div class="container">
       <div class="hero-text">
-        <p class="hero-tag"><span class="dot" aria-hidden="true"></span> Windows 10/11 · x64 · 免费</p>
+        <p class="hero-tag"><span class="dot" aria-hidden="true"></span> Windows 10/11 · Linux x64 · 免费 · v1.5.2</p>
         <h1>扫雷 2.0</h1>
         <p class="lead">
-          一个从零手写的 Windows 扫雷：<strong>先把经典玩法 100% 还原，再往上加新的东西。</strong>
-          C# + .NET 10 + WinUI 3 + Win2D，不需要 Visual Studio，<code>dotnet build</code> 即可编译。
+          一个从零手写的扫雷：<strong>先把经典玩法 100% 还原，再往上加新的东西。</strong>
+          两个平台共用同一套 Core —— Windows 用 C# + .NET 10 + WinUI 3 + Win2D，
+          Linux 用 Avalonia + SkiaSharp；都不需要 Visual Studio，<code>dotnet build</code> 即可编译。
         </p>
 
         <div class="btn-row">
@@ -380,7 +381,7 @@
       <div class="section-head reveal">
         <p class="eyebrow">下载</p>
         <h2>装上就能玩</h2>
-        <p class="lead">两种安装方式，内容完全一样。包是<strong>自包含</strong>的——不需要预装 .NET 或 Windows App SDK。</p>
+        <p class="lead">Windows 两种安装方式、Linux 一种，内容完全一样。包都是<strong>自包含</strong>的——不需要预装 .NET 或 Windows App SDK。</p>
       </div>
 
       <div class="dl-grid">
@@ -396,22 +397,30 @@
         </article>
 
         <article class="dl-card reveal">
-          <h3>⬇️ GitHub Release</h3>
+          <h3>⬇️ GitHub Release（Windows）</h3>
           <p>立即可用。下载 <code>.msix</code> 与随包的 <code>.cer</code> 证书，先信任证书再双击安装。</p>
           <p class="dl-note">也可以用 <code>build.cmd</code> 自己从源码编译。</p>
+          <a class="btn btn--primary dl-badge-btn" href="https://github.com/Fastrof/Minesweeper2.0/releases" target="_blank" rel="noopener">前往 Releases</a>
+        </article>
+
+        <article class="dl-card reveal">
+          <h3>🐧 Linux（.deb）</h3>
+          <p>下载 <code>minesweeper2_1.5.2_amd64.deb</code>，一条命令装好；依赖会自动补齐。</p>
+          <p class="dl-note"><code>sudo apt install ./minesweeper2_1.5.2_amd64.deb</code><br>装完在应用菜单里搜「扫雷」或终端执行 <code>minesweeper2</code>。</p>
           <a class="btn btn--primary dl-badge-btn" href="https://github.com/Fastrof/Minesweeper2.0/releases" target="_blank" rel="noopener">前往 Releases</a>
         </article>
       </div>
 
       <div class="table-wrap reveal" style="margin-top:22px">
         <table>
-          <thead><tr><th>项</th><th>要求</th></tr></thead>
+          <thead><tr><th>项</th><th>Windows</th><th>Linux</th></tr></thead>
           <tbody>
-            <tr><td>系统</td><td>Windows 10 1809（17763）及以上 / Windows 11</td></tr>
-            <tr><td>架构</td><td>x64（ARM64 设备通过 Windows 11 的 x64 模拟运行）</td></tr>
-            <tr><td>.NET 运行时</td><td><strong>不需要</strong>——包内已包含</td></tr>
-            <tr><td>Windows App SDK</td><td><strong>不需要</strong>——包内已包含</td></tr>
-            <tr><td>磁盘占用</td><td>约 230 MB（自包含运行时占大部分；安装包本身 93 MB）</td></tr>
+            <tr><td>系统</td><td>Windows 10 1809（17763）及以上 / Windows 11</td><td>glibc ≥ 2.35（Ubuntu 22.04+ / Debian 12+ / Fedora 36+）</td></tr>
+            <tr><td>架构</td><td>x64（ARM64 设备通过 Windows 11 的 x64 模拟运行）</td><td>x86_64</td></tr>
+            <tr><td>图形</td><td>系统自带</td><td>X11 或 Wayland 桌面（WSLg 也可运行）</td></tr>
+            <tr><td>.NET 运行时</td><td><strong>不需要</strong>——包内已包含</td><td><strong>不需要</strong>——包内已包含</td></tr>
+            <tr><td>其他依赖</td><td>Windows App SDK 已打包</td><td>自动安装 libx11 / fontconfig / fonts-dejavu-core 等</td></tr>
+            <tr><td>磁盘占用</td><td>约 230 MB（安装包 93 MB）</td><td>约 102 MB（安装包 35 MB）</td></tr>
           </tbody>
         </table>
       </div>
@@ -419,7 +428,7 @@
       <div class="callout reveal">
         <strong>GitHub 版第一次安装会提示"未知发布者"</strong>，因为它是自签名证书。用管理员 PowerShell 先信任随包证书即可：
         <br><code>Import-Certificate -FilePath .\MineSweeper2.0-dev.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople</code>
-        <br>商店版没有这一步。
+        <br>商店版没有这一步；Linux 的 <code>.deb</code> 也没有，直接用 <code>apt</code> 装即可。
       </div>
     </div>
   </section>
@@ -434,13 +443,18 @@
 
       <div class="faq reveal">
         <details>
+          <summary>Linux 版和 Windows 版是同一个游戏吗？</summary>
+          <p>是。两个平台<strong>共用同一套 Core</strong>——布雷、洪水填充、chord、关卡、道具、成就、存档格式完全一致，只是 UI 层不同（Windows 用 WinUI 3 + Win2D，Linux 用 Avalonia + SkiaSharp）。所以两边成绩算法、存档结构、彩蛋位置都相同。Linux 端版本号统一带 <code>-Linux</code> 后缀（如 <code>v1.5.2-Linux</code>），发布 tag 用 <code>linux-v*</code>，与 Windows 的 <code>v*</code> 互不干扰。</p>
+        </details>
+
+        <details>
           <summary>为什么键盘不能操作棋盘？</summary>
           <p>这是刻意的设计——项目所有者的要求是纯鼠标操作，所以棋盘不是键盘焦点、也没有焦点框。设置面板里的文本框（种子、分享串）仍然可以用键盘输入。方向键 / 回车 / 空格都不会对棋盘产生作用，这不是故障。</p>
         </details>
 
         <details>
           <summary>存档放在哪里？</summary>
-          <p>未打包版在 <code>%LOCALAPPDATA%\MineSweeper2\</code>，商店版在应用自己的本地数据文件夹里。里面有 <code>settings.json</code>（设置）、<code>progress.json</code>（进度与道具）、<code>levelprogress.json</code>（关卡）、<code>records.json</code>（最快记录）、<code>history.json</code>（累计统计）、<code>config.json</code>（可手改的配置）与 <code>app.log</code>（日志）。<strong>删掉这个目录就等于一切从头开始。</strong></p>
+          <p>Windows 未打包版在 <code>%LOCALAPPDATA%\MineSweeper2\</code>，商店版在应用自己的本地数据文件夹里；<strong>Linux 在 <code>~/.local/share/minesweeper2/</code></strong>（遵循 XDG 规范，有 <code>XDG_DATA_HOME</code> 时以它为准）。里面有 <code>settings.json</code>（设置）、<code>progress.json</code>（进度与道具）、<code>levelprogress.json</code>（关卡）、<code>records.json</code>（最快记录）、<code>history.json</code>（累计统计）、<code>config.json</code>（可手改的配置）与 <code>app.log</code>（日志）。<strong>删掉这个目录就等于一切从头开始。</strong></p>
         </details>
 
         <details>
